@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Säkerhetsrapport</title>
+<meta name="description" content="Säkerhetsrapport efter varje match: vakter, händelselogg och PDF.">
+<meta name="theme-color" content="#14181F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Säkerhetsrapport">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+body{margin:0;min-height:100vh;padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+.login{max-width:440px;margin:0 auto;padding-block:40px;display:flex;flex-direction:column;gap:14px}
+.login h2{margin:0;font-size:26px;font-weight:800;text-wrap:balance}
+.err{background:var(--accent-soft);color:var(--accent-soft-ink);padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap" id="head"></div></header>
+<main><div class="wrap" id="main"></div></main>
+<div class="dock" id="dock" hidden><div class="wrap" id="dockin"></div></div>
+<div id="sheet"></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
