@@ -243,6 +243,7 @@ function renderReport(keep){
   +'<div class="grid2"><label class="f">Avspark<input id="f_start1" type="time" value="'+esc(r.start1||'')+'"'+dis+'></label>'
   +'<label class="f">Avspark 2:a halvlek<input id="f_start2" type="time" value="'+esc(r.start2||'')+'"'+dis+'></label></div>'
   +(ro?'':'<span class="empty">Fyll i avspark så räknas matchminuten ut för varje händelse.</span>');
+ h+='<div class="eyebrow" style="margin-top:6px">Säkerhetsansvariga</div><div class="card staff" id="ansvbox">'+ansvHTML()+'</div>';
  h+='<div class="eyebrow" style="margin-top:6px">Personal</div><div class="card staff" id="staff">'+staffHTML()+'</div>';
  h+='<div class="row between" style="margin-top:6px"><span class="eyebrow">Händelselogg</span><span class="empty">Senaste överst</span></div>';
  if(!ro)h+='<div class="composer" id="composer">'+composerHTML()+'</div>';
@@ -269,7 +270,7 @@ function renderReport(keep){
    touch()})}
   wireComposer();
  }
- wireStaff();wireLog();
+ wireStaff();wireLog();wireAnsv();
  const dr=$('#delrep');if(dr)dr.onclick=async()=>{
   if(!dr.dataset.arm){dr.dataset.arm='1';dr.textContent='Tryck igen för att ta bort för alltid';dr.style.background='var(--accent)';dr.style.color='var(--on-accent)';
    setTimeout(()=>{if(dr.isConnected){delete dr.dataset.arm;dr.textContent='Ta bort rapporten';dr.style.background='';dr.style.color='var(--accent-ink)'}},5000);return}
@@ -285,6 +286,29 @@ function staffHTML(){
  return ['hemma','borta','ovrig'].map(k=>{const key=k==='hemma'?'vakterHemma':k==='borta'?'vakterBorta':'ovrig';const list=r[key]||[];
   return '<div class="grp"><div class="row between"><h3>'+KAT[k]+' ('+list.length+')</h3>'+(ro?'':'<button class="link" data-pick="'+k+'">+ Hämta från register</button>')+'</div>'
    +(list.length?'<div class="chips">'+list.map(g=>'<span class="chip">'+esc(g.namn)+(g.roll?' · '+esc(g.roll):'')+'</span>').join('')+'</div>':'<span class="empty">Ingen vald</span>')+'</div>'}).join('');
+}
+function ansvHTML(){const r=S.report,L=r.ansvariga||[];
+ return '<div class="grp"><div class="row between"><h3>Får rapporten ('+L.length+')</h3>'+(S.readOnly?'':'<button class="link" id="pickAnsv">+ Välj från listan</button>')+'</div>'
+  +(L.length?'<div class="chips">'+L.map(m=>'<span class="chip">'+esc(m.namn)+(m.forening?' · '+esc(m.forening):'')+'</span>').join('')+'</div>':'<span class="empty">Ingen vald</span>')+'</div>'}
+function wireAnsv(){const b=$('#pickAnsv');if(b)b.onclick=openAnsvPicker}
+function openAnsvPicker(){
+ const chosen=new Set((S.report.ansvariga||[]).map(m=>m.id));let q='';
+ function draw(){
+  const L=S.ansv.filter(m=>!q||(m.namn+' '+m.forening).toLowerCase().includes(q)).sort((a,b)=>(a.forening+a.namn).localeCompare(b.forening+b.namn,'sv'));
+  const extra=(S.report.ansvariga||[]).filter(m=>!S.ansv.some(x=>x.id===m.id));
+  $('#sheet').innerHTML='<div class="sheet-bg" id="sbg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh"><div class="hd"><h2 id="sh">Säkerhetsansvariga</h2><button class="iconbtn" id="sx" aria-label="Stäng">'+ICON.close+'</button></div>'
+   +'<div class="bd"><label class="search">'+ICON.search+'<input id="sq" type="search" placeholder="Sök namn eller förening" value="'+esc(q)+'" aria-label="Sök"></label>'
+   +'<div class="card">'+(L.concat(extra).map(m=>'<label class="pick"><input type="checkbox" data-a="'+esc(m.id)+'"'+(chosen.has(m.id)?' checked':'')+'><span style="display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(m.namn)+'</span><span class="s">'+esc([m.forening,m.epost].filter(Boolean).join(' · ')||' ')+'</span></span></label>').join('')||'<div class="pick"><span class="empty">Listan är tom. Lägg till under fliken Ansvariga.</span></div>')+'</div></div>'
+   +'<div class="ft"><button class="btn primary" id="sdone" style="width:100%">Klar ('+chosen.size+' valda)</button></div></div></div>';
+  const sq=$('#sq');sq.oninput=()=>{q=sq.value.toLowerCase();draw();const n=$('#sq');n.focus();try{n.setSelectionRange(n.value.length,n.value.length)}catch(e){}};
+  document.querySelectorAll('[data-a]').forEach(c=>c.onchange=()=>{if(c.checked)chosen.add(c.dataset.a);else chosen.delete(c.dataset.a);$('#sdone').textContent='Klar ('+chosen.size+' valda)'});
+  $('#sx').onclick=close;$('#sbg').onclick=e=>{if(e.target.id==='sbg')close()};
+  $('#sdone').onclick=()=>{const pool=S.ansv.concat(extra);S.report.ansvariga=[...chosen].map(id=>{const m=pool.find(x=>x.id===id);return m?{id:m.id,namn:m.namn,forening:m.forening||'',epost:m.epost||'',telefon:m.telefon||''}:null}).filter(Boolean);
+   S.shareSel=null;touch();close();$('#ansvbox').innerHTML=ansvHTML();wireAnsv()};
+ }
+ function close(){$('#sheet').innerHTML='';document.removeEventListener('keydown',esck)}
+ function esck(e){if(e.key==='Escape')close()}
+ document.addEventListener('keydown',esck);draw();
 }
 function wireStaff(){document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pick))}
 function composerHTML(){
@@ -382,8 +406,8 @@ function renderShare(){
   +'<button class="btn primary" id="share">'+ICON.pdf+'Dela PDF (Mejl, Messenger…)</button>'
   +'<button class="btn ghost" id="dl">Ladda ner PDF</button>';
  {const lag=[r.hemmalag,r.bortalag].map(x=>(x||'').trim().toLowerCase()).filter(Boolean);
-  if(!S.shareSel||S.shareSel.id!==r.id)S.shareSel={id:r.id,set:new Set(S.ansv.filter(m=>m.epost&&m.forening&&lag.some(l=>l.includes(m.forening.toLowerCase())||m.forening.toLowerCase().includes(l))).map(m=>m.id))};
-  const A=S.ansv.filter(m=>m.epost).sort((a,b)=>(a.forening+a.namn).localeCompare(b.forening+b.namn,'sv'));
+  if(!S.shareSel||S.shareSel.id!==r.id)S.shareSel={id:r.id,set:new Set((r.ansvariga||[]).map(m=>m.id))};
+  const A=S.ansv.concat((r.ansvariga||[]).filter(m=>!S.ansv.some(x=>x.id===m.id))).filter(m=>m.epost).sort((a,b)=>(a.forening+a.namn).localeCompare(b.forening+b.namn,'sv'));
   h+='<div class="eyebrow" style="margin-top:12px">Skicka till säkerhetsansvariga</div>';
   if(!A.length)h+='<p class="empty">Lägg in säkerhetsansvariga under fliken <b>Ansvariga</b>, så kan du välja dem här.</p>';
   else h+='<div class="card">'+A.map(m=>'<label class="pick"><input type="checkbox" data-m="'+esc(m.id)+'"'+(S.shareSel.set.has(m.id)?' checked':'')+'><span style="display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(m.namn)+(m.forening?' · '+esc(m.forening):'')+'</span><span class="s" style="overflow-wrap:anywhere">'+esc(m.epost)+'</span></span></label>').join('')+'</div>'
@@ -399,7 +423,7 @@ function renderShare(){
  $('#main').innerHTML=h;$('#dock').hidden=true;
  $('#share').onclick=()=>pdfOut(true);$('#dl').onclick=()=>pdfOut(false);
  document.querySelectorAll('[data-m]').forEach(c=>c.onchange=()=>{if(c.checked)S.shareSel.set.add(c.dataset.m);else S.shareSel.set.delete(c.dataset.m);$('#sendSel').textContent='Skicka PDF till valda ('+S.shareSel.set.size+')'});
- const ss=$('#sendSel');if(ss)ss.onclick=()=>{const em=S.ansv.filter(m=>S.shareSel.set.has(m.id)&&m.epost).map(m=>m.epost);
+ const ss=$('#sendSel');if(ss)ss.onclick=()=>{const pool=S.ansv.concat(S.report.ansvariga||[]);const em=[...new Set(pool.filter(m=>S.shareSel.set.has(m.id)&&m.epost).map(m=>m.epost))];
   if(!em.length){toast('Välj minst en mottagare');return}
   const txt=em.join(', ');try{navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}
   toast('Adresserna är kopierade. Klistra in dem i Till-fältet.');pdfOut(true)};
@@ -460,6 +484,7 @@ function buildPdf(r){
   need(14+tl.length*4.8);y+=4;d.setFont('helvetica','bold');d.setFontSize(8.5);d.setTextColor(...mut);d.text(title,M,y);y+=3;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=6;
   d.setFont('helvetica',color?'bold':'normal');d.setFontSize(10);d.setTextColor(...(color||ink));tl.forEach(l=>{need(5);d.text(l,M,y);y+=4.8});y+=3;d.setTextColor(...ink);
  }
+ if((r.ansvariga||[]).length)block('SÄKERHETSANSVARIGA',r.ansvariga.map(m=>m.namn+(m.forening?' ('+m.forening+')':'')).join(', '));
  const kam=(r.kameror||'').trim();block('KAMEROR',kam||'Allt okej',kam?null:[30,122,60]);
  block('FILMMATERIAL',r.polisFilm?'Överlämnat till polis'+((r.polisNamn||'').trim()?': '+r.polisNamn.trim():'.'):'Inte överlämnat till polis.');
  if((r.ovrigt||'').trim())block('ÖVRIGA NOTERINGAR',r.ovrigt.trim());
@@ -510,7 +535,7 @@ function renderAnsv(){
   +'<label class="f">E-post<input id="ae" type="email" inputmode="email" autocomplete="off"></label><label class="f">Telefon<input id="at" type="tel" autocomplete="off"></label></div><button class="btn primary small" type="submit">Lägg till</button></form>';
  h+='<div class="eyebrow">Alla ('+L.length+')</div>';
  h+='<div class="card">'+(L.map(m=>'<div class="pick"><span style="flex:1;display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(m.namn)+(m.forening?' · '+esc(m.forening):'')+'</span><span class="s" style="overflow-wrap:anywhere">'+esc([m.epost,m.telefon].filter(Boolean).join(' · ')||' ')+'</span></span><button class="link" data-arm="'+esc(m.id)+'">'+(S.delArm==='a'+m.id?'Säker?':'Ta bort')+'</button></div>').join('')||'<div class="pick"><span class="empty">Listan är tom. Lägg till den första ovan.</span></div>')+'</div>';
- h+='<p class="empty">När du skickar en PDF förväljs de vars förening matchar hemmalaget eller bortalaget.</p>';
+ h+='<p class="empty">I varje rapport väljer du vilka från listan som ska få rapporten.</p>';
  $('#main').innerHTML=h;$('#dock').hidden=true;
  $('#af').onsubmit=async e=>{e.preventDefault();const n=$('#an').value.trim(),fo=$('#afo').value.trim(),em=$('#ae').value.trim().toLowerCase(),t=$('#at').value.trim();
   if(!n){$('#an').focus();return}if(em&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){toast('Kontrollera e-postadressen');$('#ae').focus();return}

@@ -1,5 +1,5 @@
-const CACHE='sakerhetsrapport-v13';
-const SHELL=['./','index.html','style.css?v=13','app.js?v=13','manifest.webmanifest','icon-192.png','icon-512.png','icon-180.png',
+const CACHE='sakerhetsrapport-v14';
+const SHELL=['./','index.html','style.css?v=14','app.js?v=14','manifest.webmanifest','icon-192.png','icon-512.png','icon-180.png',
  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
