@@ -488,6 +488,7 @@ function tabs(v){const on=TABS.some(t=>t[0]===v);$('#tabbar').hidden=!on;documen
  $('#tabin').innerHTML=TABS.map(t=>'<button class="'+(t[0]===v?'on':'')+'" data-tab="'+t[0]+'"'+(t[0]===v?' aria-current="page"':'')+'>'+ICON[t[2]]+t[1]+'</button>').join('');
  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!==S.view)go(b.dataset.tab)})}
 function go(v){
+ if(S.reloadWhenFree&&v==='list'){S.reloadWhenFree();return}
  tabs(v);S.view=v;S.delArm=null;$('#sheet').innerHTML='';
  if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();else if(v==='me')renderMe();
  window.scrollTo(0,0);
@@ -509,5 +510,12 @@ sb.auth.onAuthStateChange((ev,session)=>{
 });
 (async()=>{const {data}=await sb.auth.getSession();if(data&&data.session)enter(data.session.user);else renderLogin('in')})();
 
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator){
+ const hadCtrl=!!navigator.serviceWorker.controller;let reloaded=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadCtrl||reloaded)return;
+  const ladda=()=>{if(reloaded)return;reloaded=true;flush().finally(()=>location.reload())};
+  if(S.view!=='report')ladda();else S.reloadWhenFree=ladda});
+ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(reg=>{
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{})})}).catch(()=>{}));
+}
 })();
