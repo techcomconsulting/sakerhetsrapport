@@ -31,6 +31,7 @@ const ICON={
  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+ doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
  pdf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M7 8l5-5 5 5"/></svg>',
@@ -49,7 +50,7 @@ function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTim
 
 /* ---------------- inloggning ---------------- */
 function renderLogin(mode,msg){
- S.view='login';
+ S.view='login';tabs('login');
  $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1>';
  const ny=mode==='ny';
  $('#main').innerHTML='<form class="login" id="lf" novalidate>'
@@ -159,8 +160,7 @@ function rcard(r){
 }
 function renderList(){
  if(S.view!=='list')return;
- $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1><button class="iconbtn" id="toInst" aria-label="Snabbval">'+ICON.gear+'</button><button class="iconbtn" id="toReg" aria-label="Vaktregister">'+ICON.users+'</button>';
- $('#toReg').onclick=()=>go('reg');$('#toInst').onclick=()=>go('inst');
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1>';
  const q=S.q.trim().toLowerCase();
  let reps=allReports().filter(r=>!q||[r.hemmalag,r.bortalag,r.datum,fmtDate(r.datum),r.rapportor].join(' ').toLowerCase().includes(q));
  reps.sort((a,b)=>(b.datum||'').localeCompare(a.datum||'')||(b.uppdaterad||0)-(a.uppdaterad||0));
@@ -186,12 +186,13 @@ async function logout(){
 
 /* ---------------- rapport ---------------- */
 function newReport(){
+ tabs('report');
  const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:LS.get(K('namn'))||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
   utkast:{tid:'',text:'',vakter:[]},status:'pagaende',skapad:Date.now(),uppdaterad:Date.now()};
  S.report=r;S.owner=S.me.id;S.readOnly=false;S.view='report';S.lastSaved=null;localSave(r);flush();renderReport();window.scrollTo(0,0);
 }
 async function openReport(id,owner){
- S.view='report';S.owner=owner;S.readOnly=owner!==S.me.id;
+ tabs('report');S.view='report';S.owner=owner;S.readOnly=owner!==S.me.id;
  let r=S.pending[id]||null;
  if(!r){$('#main').innerHTML='<p class="empty">Hämtar rapporten…</p>';$('#dock').hidden=true;
   const {data,error}=await sb.from('rapporter').select('data').eq('id',id).maybeSingle();
@@ -330,8 +331,7 @@ function openPicker(kat){
 
 /* ---------------- vaktregister ---------------- */
 function renderReg(){
- $('#head').innerHTML='<button class="iconbtn" id="back" aria-label="Tillbaka">'+ICON.back+'</button><h1>Vaktregister</h1>';
- $('#back').onclick=()=>go('list');
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.users+'</span><h1>Vaktregister</h1>';
  const list=S.guards.slice().sort((a,b)=>a.namn.localeCompare(b.namn,'sv'));
  let h='<form class="card" id="rf" style="padding:14px;display:flex;flex-direction:column;gap:10px"><strong>Lägg till person</strong><div class="grid2"><label class="f">Namn<input id="rn" type="text"></label><label class="f">Vakt-nr (valfritt)<input id="rx" type="text"></label></div><button class="btn primary small" type="submit">Lägg till</button></form>';
  h+='<div class="eyebrow">Alla i registret ('+list.length+')</div>';
@@ -442,8 +442,7 @@ async function saveQuick(){LS.set(K('quick'),S.quick);
  const {error}=await sb.from('installningar').upsert({agare:S.me.id,snabbval:S.quick,uppdaterad:new Date().toISOString()});
  if(error)toast('Kunde inte spara. Kontrollera nätet.')}
 function renderInst(){
- $('#head').innerHTML='<button class="iconbtn" id="back" aria-label="Tillbaka">'+ICON.back+'</button><h1>Snabbval</h1>';
- $('#back').onclick=()=>go('list');
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.gear+'</span><h1>Snabbval</h1>';
  const L=S.quick;
  let h='<form class="box" id="qf"><h3>Lägg till snabbval</h3><label class="f">Text<input id="qn" type="text" placeholder="t.ex. Bråk på läktaren" maxlength="60"></label><button class="btn primary small" type="submit">Lägg till</button></form>';
  h+='<div class="eyebrow">Dina snabbval ('+L.length+')</div>';
@@ -461,8 +460,13 @@ function renderInst(){
 }
 
 /* ---------------- navigering ---------------- */
+const TABS=[['list','Rapporter','doc'],['reg','Vakter','users'],['inst','Snabbval','gear']];
+function tabs(v){const on=TABS.some(t=>t[0]===v);$('#tabbar').hidden=!on;document.body.classList.toggle('has-tabs',on);if(!on)return;
+ $('#tabin').style.setProperty('--tabs',TABS.length);
+ $('#tabin').innerHTML=TABS.map(t=>'<button class="'+(t[0]===v?'on':'')+'" data-tab="'+t[0]+'"'+(t[0]===v?' aria-current="page"':'')+'>'+ICON[t[2]]+t[1]+'</button>').join('');
+ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!==S.view)go(b.dataset.tab)})}
 function go(v){
- S.view=v;S.delArm=null;$('#sheet').innerHTML='';
+ tabs(v);S.view=v;S.delArm=null;$('#sheet').innerHTML='';
  if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();
  window.scrollTo(0,0);
 }
@@ -472,7 +476,7 @@ async function enter(user){
  if(S.me&&S.me.id===user.id)return;
  S.me={id:user.id,email:(user.email||'').toLowerCase()};
  S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
- S.view='list';renderList();
+ S.view='list';tabs('list');renderList();
  await loadAll();
  for(const id in S.pending){const loc=S.pending[id];const row=S.rows.find(x=>x.id===id);if(row&&(row.uppdaterad||0)>=(loc.uppdaterad||0)){delete S.pending[id]}}
  savePending();flush();renderList();
