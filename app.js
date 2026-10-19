@@ -443,7 +443,7 @@ function buildPdf(r){
  const kam=(r.kameror||'').trim();block('KAMEROR',kam||'Allt okej',kam?null:[30,122,60]);
  block('FILMMATERIAL',r.polisFilm?'Överlämnat till polis'+((r.polisNamn||'').trim()?': '+r.polisNamn.trim():'.'):'Inte överlämnat till polis.');
  if((r.ovrigt||'').trim())block('ÖVRIGA NOTERINGAR',r.ovrigt.trim());
- const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Rapporten är upprättad av '+firma,M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
+ const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Upprättad av '+((r.rapportor||'').trim()?r.rapportor.trim()+', '+firma:firma),M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
  return d;
 }
 async function pdfOut(share){
