@@ -15,6 +15,16 @@ const timeOf=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0
 const num=v=>{const n=parseInt(String(v).replace(/\D/g,''),10);return isNaN(n)?'':n};
 const fmtNum=n=>n===''||n==null?'–':Number(n).toLocaleString('sv-SE');
 const FORETAG='Techcom Consulting AB';
+const toMin=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(+m[1])*60+(+m[2]):null};
+/* Fotboll: 2 x 45 min. Utan tid för andra halvlek räknar vi med 15 min paus. */
+function matchMinute(r,tid){
+ const a=toMin(r&&r.start1),t=toMin(tid);if(a==null||t==null)return '';
+ const d=t-a;if(d<0)return 'Före match';
+ const b=toMin(r.start2);
+ const second=(m,ca)=>m<45?(ca?'ca ':'')+(46+m)+"'":m<=54?(ca?'ca ':'')+'90+'+(m-44)+"'":'Efter match';
+ if(b!=null){if(t>=b)return second(t-b,false);if(d<45)return (d+1)+"'";return d-44<=8?'45+'+(d-44)+"'":'Halvtid'}
+ if(d<45)return (d+1)+"'";if(d<50)return '45+'+(d-44)+"'";if(d<60)return 'Halvtid';return second(d-60,true);
+}
 const KAT={hemma:'Vakter hemma',borta:'Vakter borta',ovrig:'Övrig personal'};
 const ICON={
  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
@@ -200,13 +210,17 @@ function renderReport(keep){
   +'<label class="f">Rapportör<input id="f_rapportor" type="text" value="'+esc(r.rapportor)+'" autocomplete="name" placeholder="Ditt namn"'+dis+'></label>'
   +'<label class="f">Hemmalag<input id="f_hemmalag" type="text" value="'+esc(r.hemmalag)+'" placeholder="Hemmalag"'+dis+'></label>'
   +'<label class="f">Bortalag<input id="f_bortalag" type="text" value="'+esc(r.bortalag)+'" placeholder="Bortalag"'+dis+'></label></div>'
-  +'<label class="f">Publiksiffra<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>';
+  +'<label class="f">Publiksiffra<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>'
+  +'<div class="grid2"><label class="f">Avspark<input id="f_start1" type="time" value="'+esc(r.start1||'')+'"'+dis+'></label>'
+  +'<label class="f">Avspark 2:a halvlek<input id="f_start2" type="time" value="'+esc(r.start2||'')+'"'+dis+'></label></div>'
+  +(ro?'':'<span class="empty">Fyll i avspark så räknas matchminuten ut för varje händelse.</span>');
  h+='<div class="eyebrow" style="margin-top:6px">Personal</div><div class="card staff" id="staff">'+staffHTML()+'</div>';
  h+='<div class="row between" style="margin-top:6px"><span class="eyebrow">Händelselogg</span><span class="empty">Senaste överst</span></div>';
  if(!ro)h+='<div class="composer" id="composer">'+composerHTML()+'</div>';
  h+='<div class="card log" id="log">'+logHTML()+'</div>';
  const y=window.scrollY;$('#main').innerHTML=h;if(keep)window.scrollTo(0,y);
  if(!ro){
+  for(const k of ['start1','start2']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;touch();$('#log').innerHTML=logHTML();wireLog();updMin()})}
   for(const k of ['datum','rapportor','hemmalag','bortalag','publik']){const el=$('#f_'+k);el.addEventListener('input',()=>{
    S.report[k]=k==='publik'?num(el.value):el.value;if(k==='publik'&&String(el.value)!==String(S.report.publik))el.value=S.report.publik;
    if(k==='rapportor')LS.set(K('namn'),el.value);touch()})}
@@ -228,16 +242,18 @@ function staffHTML(){
 function wireStaff(){document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pick))}
 function composerHTML(){
  const u=S.report.utkast||{tid:'',text:'',vakter:[]},staff=allStaff(S.report);
- return '<div class="row" style="align-items:flex-start"><label class="f tid">Tid<input id="c_tid" type="time" value="'+esc(u.tid||nowHM())+'"></label>'
+ return '<div class="row" style="align-items:flex-start"><span style="display:flex;flex-direction:column;gap:4px"><label class="f tid">Tid<input id="c_tid" type="time" value="'+esc(u.tid||nowHM())+'"></label><span class="mono" id="c_min" aria-live="polite">'+esc(minLabel(u.tid||nowHM()))+'</span></span>'
   +'<label class="f" style="flex:1">Vad hände?<textarea id="c_text" rows="2" placeholder="Skriv händelsen">'+esc(u.text)+'</textarea></label></div>'
   +'<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600">Ingripande vakter</span>'
   +(staff.length?'<div class="chips">'+staff.map(g=>{const on=(u.vakter||[]).includes(g.id);return '<button type="button" class="chip'+(on?' on':'')+'" data-tog="'+esc(g.id)+'" aria-pressed="'+on+'">'+esc(g.namn)+'</button>'}).join('')+'</div>':'<span class="empty">Lägg till vakter under Personal först.</span>')+'</div>'
   +'<button type="button" class="btn primary small" id="c_add">Lägg till i loggen</button>';
 }
+function minLabel(t){const m=matchMinute(S.report,t);return m?'Matchminut: '+m:''}
+function updMin(){const c=$('#c_min'),t=$('#c_tid');if(c&&t)c.textContent=minLabel(t.value)}
 function wireComposer(){
  const u=S.report.utkast=S.report.utkast||{tid:'',text:'',vakter:[]};
  const t=$('#c_tid'),x=$('#c_text');
- t.oninput=()=>{u.tid=t.value;touch()};x.oninput=()=>{u.text=x.value;touch()};
+ t.oninput=()=>{u.tid=t.value;touch();updMin()};x.oninput=()=>{u.text=x.value;touch()};
  document.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{const id=b.dataset.tog;u.vakter=u.vakter||[];const i=u.vakter.indexOf(id);if(i>=0)u.vakter.splice(i,1);else u.vakter.push(id);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',String(i<0));touch()});
  $('#c_add').onclick=()=>{
   if(!x.value.trim()){x.focus();toast('Skriv vad som hände först');return}
@@ -250,9 +266,9 @@ function wireComposer(){
 const sortedLog=()=>(S.report.logg||[]).slice().sort((a,b)=>(b.tid||'').localeCompare(a.tid||''));
 function logHTML(){
  const L=sortedLog();if(!L.length)return '<div class="e"><span class="empty">Inga händelser än.</span></div>';
- return L.map(e=>'<div class="e"><span class="t">'+esc(e.tid)+'</span><span class="x"><span>'+esc(e.text)+'</span>'
+ return L.map(e=>{const mm=matchMinute(S.report,e.tid);return '<div class="e"><span class="t">'+esc(e.tid)+(mm?'<br><span style="font-size:12px;color:var(--muted)">'+esc(mm)+'</span>':'')+'</span><span class="x"><span>'+esc(e.text)+'</span>'
   +((e.vakter||[]).length?'<span class="who">Ingrep: '+esc(e.vakter.map(v=>v.namn).join(', '))+'</span>':'')+'</span>'
-  +(S.readOnly?'':'<button class="del'+(S.delArm===e.id?' sure':'')+'" data-del="'+esc(e.id)+'">'+(S.delArm===e.id?'Säker?':'Ta bort')+'</button>')+'</div>').join('');
+  +(S.readOnly?'':'<button class="del'+(S.delArm===e.id?' sure':'')+'" data-del="'+esc(e.id)+'">'+(S.delArm===e.id?'Säker?':'Ta bort')+'</button>')+'</div>'}).join('');
 }
 function wireLog(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const id=b.dataset.del;
  if(S.delArm===id){S.report.logg=S.report.logg.filter(e=>e.id!==id);S.delArm=null;touch();toast('Händelsen är borttagen')}
@@ -347,7 +363,7 @@ function buildPdf(r){
   d.setTextColor(255,255,255);d.setFont('helvetica','bold');
   if(first){d.setFontSize(8.5);d.text('SÄKERHETSRAPPORT  ·  '+firma.toUpperCase(),M,11);d.setFontSize(19);d.text(d.splitTextToSize(teams,CW-55)[0],M,23);
    d.setFont('helvetica','normal');d.setFontSize(9.5);d.text(fmtDate(r.datum),W-M,13,{align:'right'});d.text('Rapportör: '+(r.rapportor||'-'),W-M,19,{align:'right'});
-   d.text(r.status==='klar'?'Avslutad':'Pågående',W-M,25,{align:'right'});y=44}
+   d.text((r.start1?'Avspark '+r.start1+'  ·  ':'')+(r.status==='klar'?'Avslutad':'Pågående'),W-M,25,{align:'right'});y=44}
   else{d.setFontSize(10);d.text(firma+' · Säkerhetsrapport · '+teams+' · '+fmtDate(r.datum),M,10);y=26}
   d.setTextColor(...ink);
  }
@@ -366,11 +382,11 @@ function buildPdf(r){
  if(!L.length){d.setFont('helvetica','normal');d.setFontSize(10);d.setTextColor(...mut);d.text('Inga händelser registrerade.',M,y);y+=6}
  L.forEach(e=>{d.setFont('helvetica','normal');d.setFontSize(10);const tl=d.splitTextToSize(e.text||'',CW-20);
   const who=(e.vakter||[]).length?d.splitTextToSize('Ingrep: '+e.vakter.map(v=>v.namn).join(', '),CW-20):[];
-  need(tl.length*4.8+who.length*4.4+5);
-  d.setFont('courier','bold');d.setFontSize(10.5);d.setTextColor(...acc);d.text(e.tid||'',M,y);
+  need(Math.max(tl.length*4.8+who.length*4.4,9)+5);
+  d.setFont('courier','bold');d.setFontSize(10.5);d.setTextColor(...acc);d.text(e.tid||'',M,y);const mm=matchMinute(r,e.tid);if(mm){d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.text(mm,M,y+4.2)}
   d.setFont('helvetica','normal');d.setFontSize(10);d.setTextColor(...ink);tl.forEach((l,i)=>d.text(l,M+20,y+i*4.8));let yy=y+tl.length*4.8;
   if(who.length){d.setFont('helvetica','bold');d.setFontSize(8.8);d.setTextColor(...mut);who.forEach(l=>{d.text(l,M+20,yy);yy+=4.4})}
-  y=yy+1.5;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=5.5;d.setTextColor(...ink)});
+  y=Math.max(yy,y+5.5)+1.5;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=5.5;d.setTextColor(...ink)});
  const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Rapporten är upprättad av '+firma,M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
  return d;
 }
