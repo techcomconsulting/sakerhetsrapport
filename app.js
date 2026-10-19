@@ -15,6 +15,7 @@ const timeOf=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0
 const num=v=>{const n=parseInt(String(v).replace(/\D/g,''),10);return isNaN(n)?'':n};
 const fmtNum=n=>n===''||n==null?'–':Number(n).toLocaleString('sv-SE');
 const FORETAG='Techcom Consulting AB';
+const QUICK=['Sjukvård','Bengaler','Berusad person','PL 13 Avlägsnad'];
 const toMin=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(+m[1])*60+(+m[2]):null};
 /* Fotboll: 2 x 45 min. Utan tid för andra halvlek räknar vi med 15 min paus. */
 function matchMinute(r,tid){
@@ -255,8 +256,12 @@ function staffHTML(){
 function wireStaff(){document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pick))}
 function composerHTML(){
  const u=S.report.utkast||{tid:'',text:'',vakter:[]},staff=allStaff(S.report);
- return '<div class="row" style="align-items:flex-start"><span style="display:flex;flex-direction:column;gap:4px"><label class="f tid">Tid<input id="c_tid" type="time" value="'+esc(u.tid||nowHM())+'"></label><span class="mono" id="c_min" aria-live="polite">'+esc(minLabel(u.tid||nowHM()))+'</span></span>'
-  +'<label class="f" style="flex:1">Vad hände?<textarea id="c_text" rows="2" placeholder="Skriv händelsen">'+esc(u.text)+'</textarea></label></div>'
+ return '<div class="row" style="align-items:flex-end;flex-wrap:wrap"><label class="f" style="width:130px;flex:none">Tid<input id="c_tid" type="time" value="'+esc(u.tid||nowHM())+'"></label>'
+  +'<button type="button" class="btn ghost small" id="c_now" style="min-height:48px">Nu</button>'
+  +'<span id="c_min" aria-live="polite" style="font-weight:800;font-size:17px;color:var(--accent-ink);padding-bottom:12px">'+esc(minLabel(u.tid||nowHM()))+'</span></div>'
+  +'<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600">Snabbval</span><div class="chips">'
+  +QUICK.map(q=>'<button type="button" class="chip" data-quick="'+esc(q)+'">'+esc(q)+'</button>').join('')+'</div></div>'
+  +'<label class="f">Vad hände?<textarea id="c_text" rows="3" placeholder="Skriv händelsen eller tryck på ett snabbval">'+esc(u.text)+'</textarea></label>'
   +'<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600">Ingripande vakter</span>'
   +(staff.length?'<div class="chips">'+staff.map(g=>{const on=(u.vakter||[]).includes(g.id);return '<button type="button" class="chip'+(on?' on':'')+'" data-tog="'+esc(g.id)+'" aria-pressed="'+on+'">'+esc(g.namn)+'</button>'}).join('')+'</div>':'<span class="empty">Lägg till vakter under Personal först.</span>')+'</div>'
   +'<button type="button" class="btn primary small" id="c_add">Lägg till i loggen</button>';
@@ -267,6 +272,9 @@ function wireComposer(){
  const u=S.report.utkast=S.report.utkast||{tid:'',text:'',vakter:[]};
  const t=$('#c_tid'),x=$('#c_text');
  t.oninput=()=>{u.tid=t.value;touch();updMin()};x.oninput=()=>{u.text=x.value;touch()};
+ $('#c_now').onclick=()=>{t.value=nowHM();u.tid=t.value;touch();updMin()};
+ document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{const q=b.dataset.quick;const cur=x.value.trim();
+  x.value=cur?cur+(/[.!?]$/.test(cur)?' ':'. ')+q:q;if(!u.tid){u.tid=t.value}u.text=x.value;touch();x.focus();try{x.setSelectionRange(x.value.length,x.value.length)}catch(e){}});
  document.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{const id=b.dataset.tog;u.vakter=u.vakter||[];const i=u.vakter.indexOf(id);if(i>=0)u.vakter.splice(i,1);else u.vakter.push(id);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',String(i<0));touch()});
  $('#c_add').onclick=()=>{
   if(!x.value.trim()){x.focus();toast('Skriv vad som hände först');return}
