@@ -210,7 +210,11 @@ async function openReport(id,owner){
   if(!error&&data){r=data.data;LS.set('sr_r_'+id,r)}else r=LS.get('sr_r_'+id);}
  if(!r){toast('Rapporten kunde inte hämtas. Kontrollera nätet.');go('list');return}
  S.report=JSON.parse(JSON.stringify(r));
- if(!S.readOnly&&!(S.report.rapportor||'').trim()){S.report.rapportor=myName();S.report.telefon=S.report.telefon||S.profil.telefon||'';S.report.epost=S.report.epost||S.profil.epost||S.me.email;touch()}
+ if(!S.readOnly){const R=S.report;let ch=false;
+  if(!(R.rapportor||'').trim()){R.rapportor=myName();ch=true}
+  if(!(R.telefon||'').trim()&&S.profil.telefon){R.telefon=S.profil.telefon;ch=true}
+  if(!(R.epost||'').trim()&&(S.profil.epost||S.me.email)){R.epost=S.profil.epost||S.me.email;ch=true}
+  if(ch)touch()}
  S.lastSaved=S.pending[id]?null:r.uppdaterad;S.saveState=S.pending[id]?'offline':'saved';
  renderReport();window.scrollTo(0,0);
 }
