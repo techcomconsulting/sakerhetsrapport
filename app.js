@@ -218,8 +218,21 @@ function renderReport(keep){
  h+='<div class="row between" style="margin-top:6px"><span class="eyebrow">Händelselogg</span><span class="empty">Senaste överst</span></div>';
  if(!ro)h+='<div class="composer" id="composer">'+composerHTML()+'</div>';
  h+='<div class="card log" id="log">'+logHTML()+'</div>';
+ h+='<div class="eyebrow" style="margin-top:6px">Kameror</div><div class="box">'
+  +'<label class="f">Avvikelser från kamerorna<textarea id="f_kameror" rows="3" placeholder="Lämna tomt om allt är okej"'+dis+'>'+esc(r.kameror||'')+'</textarea></label>'
+  +'<span id="kamok" class="okay"'+((r.kameror||'').trim()?' hidden':'')+'>Allt okej</span></div>';
+ const pol=!!r.polisFilm;
+ h+='<div class="eyebrow" style="margin-top:6px">Filmmaterial</div><div class="box"><h3 id="polh">Överlämnat till polis?</h3>'
+  +'<div class="seg" role="group" aria-labelledby="polh"><button type="button" data-pol="0" class="'+(!pol?'on':'')+'" aria-pressed="'+!pol+'"'+dis+'>Nej</button><button type="button" data-pol="1" class="'+(pol?'on':'')+'" aria-pressed="'+pol+'"'+dis+'>Ja</button></div>'
+  +'<label class="f" id="polbox"'+(pol?'':' hidden')+'>Vilken polis? (namn, tjänstenummer)<input id="f_polisNamn" type="text" value="'+esc(r.polisNamn||'')+'"'+dis+'></label></div>';
+ h+='<div class="eyebrow" style="margin-top:6px">Övriga noteringar</div>'
+  +'<label class="f"><span class="sr" hidden>Övriga noteringar</span><textarea id="f_ovrigt" rows="4" placeholder="Skriv övriga noteringar" aria-label="Övriga noteringar"'+dis+'>'+esc(r.ovrigt||'')+'</textarea></label>';
  const y=window.scrollY;$('#main').innerHTML=h;if(keep)window.scrollTo(0,y);
  if(!ro){
+  for(const k of ['kameror','polisNamn','ovrigt']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;if(k==='kameror')$('#kamok').hidden=!!el.value.trim();touch()})}
+  document.querySelectorAll('[data-pol]').forEach(b=>b.onclick=()=>{const on=b.dataset.pol==='1';S.report.polisFilm=on;touch();
+   document.querySelectorAll('[data-pol]').forEach(x=>{const v=(x.dataset.pol==='1')===on;x.classList.toggle('on',v);x.setAttribute('aria-pressed',String(v))});
+   $('#polbox').hidden=!on;if(on)$('#f_polisNamn').focus()});
   for(const k of ['start1','start2']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;touch();$('#log').innerHTML=logHTML();wireLog();updMin()})}
   for(const k of ['datum','rapportor','hemmalag','bortalag','publik']){const el=$('#f_'+k);el.addEventListener('input',()=>{
    S.report[k]=k==='publik'?num(el.value):el.value;if(k==='publik'&&String(el.value)!==String(S.report.publik))el.value=S.report.publik;
@@ -387,6 +400,14 @@ function buildPdf(r){
   d.setFont('helvetica','normal');d.setFontSize(10);d.setTextColor(...ink);tl.forEach((l,i)=>d.text(l,M+20,y+i*4.8));let yy=y+tl.length*4.8;
   if(who.length){d.setFont('helvetica','bold');d.setFontSize(8.8);d.setTextColor(...mut);who.forEach(l=>{d.text(l,M+20,yy);yy+=4.4})}
   y=Math.max(yy,y+5.5)+1.5;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=5.5;d.setTextColor(...ink)});
+ function block(title,text,color){
+  d.setFont('helvetica','normal');d.setFontSize(10);const tl=d.splitTextToSize(text,CW);
+  need(14+tl.length*4.8);y+=4;d.setFont('helvetica','bold');d.setFontSize(8.5);d.setTextColor(...mut);d.text(title,M,y);y+=3;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=6;
+  d.setFont('helvetica',color?'bold':'normal');d.setFontSize(10);d.setTextColor(...(color||ink));tl.forEach(l=>{need(5);d.text(l,M,y);y+=4.8});y+=3;d.setTextColor(...ink);
+ }
+ const kam=(r.kameror||'').trim();block('KAMEROR',kam||'Allt okej',kam?null:[30,122,60]);
+ block('FILMMATERIAL',r.polisFilm?'Överlämnat till polis'+((r.polisNamn||'').trim()?': '+r.polisNamn.trim():'.'):'Inte överlämnat till polis.');
+ if((r.ovrigt||'').trim())block('ÖVRIGA NOTERINGAR',r.ovrigt.trim());
  const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Rapporten är upprättad av '+firma,M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
  return d;
 }
