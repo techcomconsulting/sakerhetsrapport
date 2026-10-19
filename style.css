@@ -120,7 +120,7 @@ button.chip.on{background:var(--fg);color:var(--bg);font-weight:700}
 /* Flikrad längst ner */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
 .tabbar .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(var(--tabs,3),minmax(0,1fr))}
-.tabbar button{border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:62px;font-size:12px;font-weight:700}
+.tabbar button{border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:62px;font-size:11px;text-align:center;line-height:1.15;padding:4px 2px;font-weight:700}
 .tabbar button svg{width:24px;height:24px}
 .tabbar button.on{color:var(--accent-ink)}
 body.has-tabs .dock{bottom:calc(62px + env(safe-area-inset-bottom,0px));padding-bottom:12px}

@@ -32,6 +32,7 @@ const ICON={
  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+ person:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
  pdf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M7 8l5-5 5 5"/></svg>',
@@ -88,11 +89,12 @@ async function loadAll(){
   sb.from('rapporter').select('id,agare,uppdaterad,sammanfattning').order('uppdaterad',{ascending:false}).limit(2000),
   sb.from('vakter').select('id,namn,nr,kat,roll'),
   sb.from('delningar').select('agare,email,skapad'),
-  sb.from('installningar').select('snabbval').maybeSingle()]);
+  sb.from('installningar').select('snabbval,namn,telefon,epost').maybeSingle()]);
  if(!a.error){S.rows=a.data;LS.set(K('rows'),S.rows)}
  if(!b.error){S.guards=b.data;LS.set(K('guards'),S.guards)}
  if(!c.error){S.shares=c.data}
  if(!e4.error&&e4.data&&Array.isArray(e4.data.snabbval)){S.quick=e4.data.snabbval;LS.set(K('quick'),S.quick)}
+ if(!e4.error&&e4.data){S.profil={namn:e4.data.namn||'',telefon:e4.data.telefon||'',epost:e4.data.epost||''};LS.set(K('profil'),S.profil)}
  if(a.error)setOnline(false);
 }
 function setOnline(v){S.online=v}
@@ -187,7 +189,7 @@ async function logout(){
 /* ---------------- rapport ---------------- */
 function newReport(){
  tabs('report');
- const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:LS.get(K('namn'))||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
+ const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:S.profil.namn||LS.get(K('namn'))||'',telefon:S.profil.telefon||'',epost:S.profil.epost||S.me.email||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
   utkast:{tid:'',text:'',vakter:[]},status:'pagaende',skapad:Date.now(),uppdaterad:Date.now()};
  S.report=r;S.owner=S.me.id;S.readOnly=false;S.view='report';S.lastSaved=null;localSave(r);flush();renderReport();window.scrollTo(0,0);
 }
@@ -214,7 +216,9 @@ function renderReport(keep){
   +'<label class="f">Datum<input id="f_datum" type="date" value="'+esc(r.datum)+'"'+dis+'></label>'
   +'<label class="f">Rapportör<input id="f_rapportor" type="text" value="'+esc(r.rapportor)+'" autocomplete="name" placeholder="Ditt namn"'+dis+'></label>'
   +'<label class="f">Hemmalag<input id="f_hemmalag" type="text" value="'+esc(r.hemmalag)+'" placeholder="Hemmalag"'+dis+'></label>'
-  +'<label class="f">Bortalag<input id="f_bortalag" type="text" value="'+esc(r.bortalag)+'" placeholder="Bortalag"'+dis+'></label></div>'
+  +'<label class="f">Bortalag<input id="f_bortalag" type="text" value="'+esc(r.bortalag)+'" placeholder="Bortalag"'+dis+'></label>'
+  +'<label class="f">Telefon<input id="f_telefon" type="tel" value="'+esc(r.telefon||'')+'" autocomplete="tel"'+dis+'></label>'
+  +'<label class="f">E-post<input id="f_epost" type="email" value="'+esc(r.epost||'')+'" autocomplete="email"'+dis+'></label></div>'
   +'<div class="grid2"><label class="f">Publik totalt<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>'
   +'<label class="f">Varav bortapublik<input id="f_publikBorta" type="text" inputmode="numeric" value="'+esc(r.publikBorta==null?'':r.publikBorta)+'" placeholder="0"'+dis+'></label></div>'
   +'<div class="grid2"><label class="f">Avspark<input id="f_start1" type="time" value="'+esc(r.start1||'')+'"'+dis+'></label>'
@@ -240,7 +244,7 @@ function renderReport(keep){
    document.querySelectorAll('[data-pol]').forEach(x=>{const v=(x.dataset.pol==='1')===on;x.classList.toggle('on',v);x.setAttribute('aria-pressed',String(v))});
    $('#polbox').hidden=!on;if(on)$('#f_polisNamn').focus()});
   for(const k of ['start1','start2']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;touch();$('#log').innerHTML=logHTML();wireLog();updMin()})}
-  for(const k of ['datum','rapportor','hemmalag','bortalag','publik','publikBorta']){const el=$('#f_'+k);const isNum=k==='publik'||k==='publikBorta';el.addEventListener('input',()=>{
+  for(const k of ['datum','rapportor','telefon','epost','hemmalag','bortalag','publik','publikBorta']){const el=$('#f_'+k);const isNum=k==='publik'||k==='publikBorta';el.addEventListener('input',()=>{
    S.report[k]=isNum?num(el.value):el.value;if(isNum&&String(el.value)!==String(S.report[k]))el.value=S.report[k];
    if(k==='rapportor')LS.set(K('namn'),el.value);touch()})}
   wireComposer();
@@ -388,7 +392,9 @@ function buildPdf(r){
   d.setTextColor(255,255,255);d.setFont('helvetica','bold');
   if(first){d.setFontSize(8.5);d.text('SÄKERHETSRAPPORT  ·  '+firma.toUpperCase(),M,11);d.setFontSize(19);d.text(d.splitTextToSize(teams,CW-55)[0],M,23);
    d.setFont('helvetica','normal');d.setFontSize(9.5);d.text(fmtDate(r.datum),W-M,13,{align:'right'});d.text('Rapportör: '+(r.rapportor||'-'),W-M,19,{align:'right'});
-   d.text((r.start1?'Avspark '+r.start1+'  ·  ':'')+(r.status==='klar'?'Avslutad':'Pågående'),W-M,25,{align:'right'});y=44}
+   d.text((r.start1?'Avspark '+r.start1+'  ·  ':'')+(r.status==='klar'?'Avslutad':'Pågående'),W-M,25,{align:'right'});
+   const kon=[r.rapportor,r.telefon,r.epost].map(x=>(x||'').trim()).filter(Boolean);
+   if(kon.length){d.setTextColor(...mut);d.setFont('helvetica','normal');d.setFontSize(9);d.text(d.splitTextToSize('Kontakt: '+kon.join('  ·  '),CW)[0],M,40);y=48}else y=44}
   else{d.setFontSize(10);d.text(firma+' · Säkerhetsrapport · '+teams+' · '+fmtDate(r.datum),M,10);y=26}
   d.setTextColor(...ink);
  }
@@ -459,15 +465,31 @@ function renderInst(){
   S.delArm=null;S.quick.splice(i,1);renderInst();await saveQuick()});
 }
 
+/* ---------------- mina uppgifter ---------------- */
+function renderMe(){
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.person+'</span><h1>Mina uppgifter</h1>';
+ const p=S.profil;
+ $('#main').innerHTML='<div class="box"><span class="empty">Uppgifterna fylls i automatiskt i nya rapporter och syns i PDF:en.</span>'
+  +'<label class="f">Namn<input id="m_namn" type="text" autocomplete="name" value="'+esc(p.namn)+'"></label>'
+  +'<label class="f">Telefon<input id="m_telefon" type="tel" autocomplete="tel" value="'+esc(p.telefon)+'"></label>'
+  +'<label class="f">E-post<input id="m_epost" type="email" autocomplete="email" value="'+esc(p.epost||S.me.email)+'"></label>'
+  +'<span class="save ok" id="m_st" style="color:var(--muted)" role="status"></span></div>'
+  +'<div class="foot"><span>'+FORETAG+'<br>Inloggad som '+esc(S.me.email)+'</span><button class="link" id="out">Logga ut</button></div>';
+ $('#dock').hidden=true;$('#out').onclick=logout;
+ let t;for(const k of ['namn','telefon','epost'])$('#m_'+k).addEventListener('input',e=>{S.profil[k]=e.target.value;LS.set(K('profil'),S.profil);$('#m_st').textContent='Sparar…';clearTimeout(t);
+  t=setTimeout(async()=>{const {error}=await sb.from('installningar').upsert({agare:S.me.id,namn:S.profil.namn,telefon:S.profil.telefon,epost:S.profil.epost,uppdaterad:new Date().toISOString()});
+   $('#m_st').textContent=error?'Sparat i mobilen. Skickas när nätet finns.':'Sparat'},600)});
+}
+
 /* ---------------- navigering ---------------- */
-const TABS=[['list','Rapporter','doc'],['reg','Vakter','users'],['inst','Snabbval','gear']];
+const TABS=[['list','Rapporter','doc'],['reg','Vakter','users'],['inst','Snabbval','gear'],['me','Mina uppgifter','person']];
 function tabs(v){const on=TABS.some(t=>t[0]===v);$('#tabbar').hidden=!on;document.body.classList.toggle('has-tabs',on);if(!on)return;
  $('#tabin').style.setProperty('--tabs',TABS.length);
  $('#tabin').innerHTML=TABS.map(t=>'<button class="'+(t[0]===v?'on':'')+'" data-tab="'+t[0]+'"'+(t[0]===v?' aria-current="page"':'')+'>'+ICON[t[2]]+t[1]+'</button>').join('');
  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!==S.view)go(b.dataset.tab)})}
 function go(v){
  tabs(v);S.view=v;S.delArm=null;$('#sheet').innerHTML='';
- if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();
+ if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();else if(v==='me')renderMe();
  window.scrollTo(0,0);
 }
 
@@ -475,7 +497,7 @@ function go(v){
 async function enter(user){
  if(S.me&&S.me.id===user.id)return;
  S.me={id:user.id,email:(user.email||'').toLowerCase()};
- S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
+ S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.profil=LS.get(K('profil'))||{namn:'',telefon:'',epost:''};S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
  S.view='list';tabs('list');renderList();
  await loadAll();
  for(const id in S.pending){const loc=S.pending[id];const row=S.rows.find(x=>x.id===id);if(row&&(row.uppdaterad||0)>=(loc.uppdaterad||0)){delete S.pending[id]}}
