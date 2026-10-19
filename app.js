@@ -14,6 +14,7 @@ const monthKey=s=>{if(!s)return 'UTAN DATUM';const d=new Date(s+'T12:00:00');ret
 const timeOf=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 const num=v=>{const n=parseInt(String(v).replace(/\D/g,''),10);return isNaN(n)?'':n};
 const fmtNum=n=>n===''||n==null?'–':Number(n).toLocaleString('sv-SE');
+const FORETAG='Techcom Consulting AB';
 const KAT={hemma:'Vakter hemma',borta:'Vakter borta',ovrig:'Övrig personal'};
 const ICON={
  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
@@ -40,7 +41,7 @@ function renderLogin(mode,msg){
  $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1>';
  const ny=mode==='ny';
  $('#main').innerHTML='<form class="login" id="lf" novalidate>'
-  +'<h2>'+(ny?'Skapa konto':'Logga in')+'</h2>'
+  +'<div class="eyebrow">'+FORETAG+'</div><h2>'+(ny?'Skapa konto':'Logga in')+'</h2>'
   +(msg?'<div class="err" role="alert">'+esc(msg)+'</div>':'')
   +'<label class="f">E-post<input id="le" type="email" autocomplete="email" inputmode="email" required></label>'
   +'<label class="f">Lösenord'+(ny?' (minst 8 tecken)':'')+'<input id="lp" type="password" autocomplete="'+(ny?'new-password':'current-password')+'" required></label>'
@@ -116,7 +117,7 @@ window.addEventListener('pagehide',flush);
 async function refresh(){if(!S.me)return;await loadAll();if(S.view==='list')renderList()}
 
 async function saveGuard(g){
- const {error}=await sb.from('vakter').upsert({id:g.id,agare:S.me.id,namn:g.namn,nr:g.nr||'',kat:g.kat,roll:g.roll||''});
+ const {error}=await sb.from('vakter').upsert({id:g.id,agare:S.me.id,namn:g.namn,nr:g.nr||'',kat:'',roll:''});
  if(error){toast('Kunde inte spara. Kontrollera nätet.');return false}
  if(!S.guards.some(y=>y.id===g.id))S.guards.push(g);LS.set(K('guards'),S.guards);return true;
 }
@@ -156,7 +157,7 @@ function renderList(){
  if(!reps.length)h+=q?'<p class="empty">Inga rapporter matchar sökningen.</p>':'<div class="card" style="padding:18px;display:flex;flex-direction:column;gap:8px"><strong style="font-size:18px">Inga rapporter än</strong><span class="empty">Tryck på <b>Ny rapport</b> efter matchen. Allt du skriver sparas direkt.</span></div>';
  if(live.length)h+='<div class="eyebrow">Pågående</div>'+live.map(rcard).join('');
  let m='';for(const r of rest){const k=monthKey(r.datum);if(k!==m){m=k;h+='<div class="eyebrow">'+esc(k)+'</div>'}h+=rcard(r)}
- h+='<div class="foot"><span>Inloggad som '+esc(S.me.email)+'</span><button class="link" id="out">Logga ut</button></div>';
+ h+='<div class="foot"><span>'+FORETAG+'<br>Inloggad som '+esc(S.me.email)+'</span><button class="link" id="out">Logga ut</button></div>';
  $('#main').innerHTML=h;
  const qi=$('#q');qi.oninput=()=>{S.q=qi.value;const p=qi.selectionStart;renderList();const n=$('#q');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};
  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openReport(b.dataset.open,b.dataset.owner));
@@ -171,7 +172,7 @@ async function logout(){
 
 /* ---------------- rapport ---------------- */
 function newReport(){
- const r={id:uid(),datum:today(),rapportor:LS.get(K('namn'))||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
+ const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:LS.get(K('namn'))||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
   utkast:{tid:'',text:'',vakter:[]},status:'pagaende',skapad:Date.now(),uppdaterad:Date.now()};
  S.report=r;S.owner=S.me.id;S.readOnly=false;S.view='report';S.lastSaved=null;localSave(r);flush();renderReport();window.scrollTo(0,0);
 }
@@ -262,19 +263,20 @@ function wireLog(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=
 function openPicker(kat){
  const key=kat==='hemma'?'vakterHemma':kat==='borta'?'vakterBorta':'ovrig';
  const chosen=new Set((S.report[key]||[]).map(g=>g.id));let q='';
+ const otherGroup={};for(const k2 of ['vakterHemma','vakterBorta','ovrig'])if(k2!==key)for(const g of (S.report[k2]||[]))otherGroup[g.id]=KAT[k2==='vakterHemma'?'hemma':k2==='vakterBorta'?'borta':'ovrig'];
  function draw(){
-  const list=S.guards.filter(g=>g.kat===kat&&(!q||(g.namn+' '+(g.nr||'')).toLowerCase().includes(q))).sort((a,b)=>a.namn.localeCompare(b.namn,'sv'));
+  const list=S.guards.filter(g=>!q||(g.namn+' '+(g.nr||'')).toLowerCase().includes(q)).sort((a,b)=>a.namn.localeCompare(b.namn,'sv'));
   const extra=(S.report[key]||[]).filter(g=>!S.guards.some(x=>x.id===g.id));
   $('#sheet').innerHTML='<div class="sheet-bg" id="sbg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh">'
    +'<div class="hd"><h2 id="sh">'+KAT[kat]+'</h2><button class="iconbtn" id="sx" aria-label="Stäng">'+ICON.close+'</button></div>'
-   +'<div class="bd"><label class="search">'+ICON.search+'<input id="sq" type="search" placeholder="Sök namn" value="'+esc(q)+'" aria-label="Sök i registret"></label>'
-   +'<div class="card">'+(list.concat(extra).map(g=>'<label class="pick"><input type="checkbox" data-g="'+esc(g.id)+'"'+(chosen.has(g.id)?' checked':'')+'><span style="display:flex;flex-direction:column"><span class="n">'+esc(g.namn)+'</span><span class="s">'+esc([g.nr?'Nr '+g.nr:'',g.roll].filter(Boolean).join(' · ')||' ')+'</span></span></label>').join('')||'<div class="pick"><span class="empty">Ingen i registret här än.</span></div>')+'</div>'
-   +'<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:10px"><strong>Ny person i registret</strong><div class="grid2"><label class="f">Namn<input id="nn" type="text"></label><label class="f">'+(kat==='ovrig'?'Roll':'Vakt-nr')+'<input id="nx" type="text"'+(kat==='ovrig'?' placeholder="t.ex. Sjukvård"':'')+'></label></div><button class="btn ghost small" id="nadd">Lägg till och välj</button></div>'
+   +'<div class="bd"><label class="search">'+ICON.search+'<input id="sq" type="search" placeholder="Sök namn eller nummer" value="'+esc(q)+'" aria-label="Sök i registret"></label>'
+   +'<div class="card">'+(list.concat(extra).map(g=>{const busy=otherGroup[g.id];return '<label class="pick"'+(busy?' style="opacity:.55"':'')+'><input type="checkbox" data-g="'+esc(g.id)+'"'+(chosen.has(g.id)?' checked':'')+(busy?' disabled':'')+'><span style="display:flex;flex-direction:column"><span class="n">'+esc(g.namn)+'</span><span class="s">'+esc(busy?'Redan vald i '+busy.toLowerCase():(g.nr?'Nr '+g.nr:' '))+'</span></span></label>'}).join('')||'<div class="pick"><span class="empty">Registret är tomt. Lägg till nedan.</span></div>')+'</div>'
+   +'<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:10px"><strong>Ny person i registret</strong><div class="grid2"><label class="f">Namn<input id="nn" type="text"></label><label class="f">Vakt-nr (valfritt)<input id="nx" type="text"></label></div><button class="btn ghost small" id="nadd">Lägg till och välj</button></div>'
    +'</div><div class="ft"><button class="btn primary" id="sdone" style="width:100%">Klar ('+chosen.size+' valda)</button></div></div></div>';
   const sq=$('#sq');sq.oninput=()=>{q=sq.value.toLowerCase();draw();const n=$('#sq');n.focus();try{n.setSelectionRange(n.value.length,n.value.length)}catch(e){}};
   document.querySelectorAll('[data-g]').forEach(c=>c.onchange=()=>{if(c.checked)chosen.add(c.dataset.g);else chosen.delete(c.dataset.g);$('#sdone').textContent='Klar ('+chosen.size+' valda)'});
   $('#nadd').onclick=async()=>{const n=$('#nn').value.trim();if(!n){$('#nn').focus();return}const x=$('#nx').value.trim();
-   const g={id:uid(),namn:n,kat,nr:kat==='ovrig'?'':x,roll:kat==='ovrig'?x:''};if(await saveGuard(g)){chosen.add(g.id);draw()}};
+   const g={id:uid(),namn:n,nr:x};if(await saveGuard(g)){chosen.add(g.id);draw()}};
   $('#sx').onclick=close;$('#sbg').onclick=e=>{if(e.target.id==='sbg')close()};
   $('#sdone').onclick=()=>{const pool=S.guards.concat(extra);
    S.report[key]=[...chosen].map(id=>{const g=pool.find(x=>x.id===id);return g?{id:g.id,namn:g.namn,nr:g.nr||'',roll:g.roll||''}:null}).filter(Boolean);
@@ -289,16 +291,15 @@ function openPicker(kat){
 function renderReg(){
  $('#head').innerHTML='<button class="iconbtn" id="back" aria-label="Tillbaka">'+ICON.back+'</button><h1>Vaktregister</h1>';
  $('#back').onclick=()=>go('list');
- const k=S.regTab,list=S.guards.filter(g=>g.kat===k).sort((a,b)=>a.namn.localeCompare(b.namn,'sv'));
- let h='<div class="tabs" role="tablist">'+['hemma','borta','ovrig'].map(t=>'<button role="tab" aria-selected="'+(t===k)+'" class="'+(t===k?'on':'')+'" data-tab="'+t+'">'+({hemma:'Hemma',borta:'Borta',ovrig:'Övrig'})[t]+'</button>').join('')+'</div>';
- h+='<div class="card">'+(list.map(g=>'<div class="pick"><span style="flex:1;display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(g.namn)+'</span><span class="s">'+esc([g.nr?'Nr '+g.nr:'',g.roll].filter(Boolean).join(' · ')||' ')+'</span></span><button class="link" data-rm="'+esc(g.id)+'">'+(S.delArm===g.id?'Säker?':'Ta bort')+'</button></div>').join('')||'<div class="pick"><span class="empty">Ingen här än. Lägg till den första nedan.</span></div>')+'</div>';
- h+='<form class="card" id="rf" style="padding:14px;display:flex;flex-direction:column;gap:10px"><strong>Lägg till i '+KAT[k].toLowerCase()+'</strong><div class="grid2"><label class="f">Namn<input id="rn" type="text"></label><label class="f">'+(k==='ovrig'?'Roll':'Vakt-nr')+'<input id="rx" type="text"'+(k==='ovrig'?' placeholder="t.ex. Sjukvård"':'')+'></label></div><button class="btn primary small" type="submit">Lägg till</button></form>';
- h+='<p class="empty">Namnen sparas i rapporten när du väljer dem. Gamla rapporter ändras inte om du tar bort någon här.</p>';
+ const list=S.guards.slice().sort((a,b)=>a.namn.localeCompare(b.namn,'sv'));
+ let h='<form class="card" id="rf" style="padding:14px;display:flex;flex-direction:column;gap:10px"><strong>Lägg till person</strong><div class="grid2"><label class="f">Namn<input id="rn" type="text"></label><label class="f">Vakt-nr (valfritt)<input id="rx" type="text"></label></div><button class="btn primary small" type="submit">Lägg till</button></form>';
+ h+='<div class="eyebrow">Alla i registret ('+list.length+')</div>';
+ h+='<div class="card">'+(list.map(g=>'<div class="pick"><span style="flex:1;display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(g.namn)+'</span><span class="s">'+esc(g.nr?'Nr '+g.nr:' ')+'</span></span><button class="link" data-rm="'+esc(g.id)+'">'+(S.delArm===g.id?'Säker?':'Ta bort')+'</button></div>').join('')||'<div class="pick"><span class="empty">Registret är tomt. Lägg till den första ovan.</span></div>')+'</div>';
+ h+='<p class="empty">I varje rapport väljer du om personen jobbar hemma, borta eller som övrig personal. Gamla rapporter ändras inte om du tar bort någon här.</p>';
  $('#main').innerHTML=h;$('#dock').hidden=true;
- document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{S.regTab=b.dataset.tab;S.delArm=null;renderReg()});
  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{const id=b.dataset.rm;if(S.delArm===id){S.delArm=null;await deleteGuard(id);renderReg()}else{S.delArm=id;renderReg()}});
  $('#rf').onsubmit=async e=>{e.preventDefault();const n=$('#rn').value.trim();if(!n){$('#rn').focus();return}const x=$('#rx').value.trim();
-  const g={id:uid(),namn:n,kat:k,nr:k==='ovrig'?'':x,roll:k==='ovrig'?x:''};if(await saveGuard(g)){toast(n+' är tillagd');renderReg();$('#rn').focus()}};
+  const g={id:uid(),namn:n,nr:x};if(await saveGuard(g)){toast(n+' är tillagd');renderReg();$('#rn').focus()}};
 }
 
 /* ---------------- dela / pdf ---------------- */
@@ -340,13 +341,14 @@ function buildPdf(r){
  const d=new J({unit:'mm',format:'a4'});const W=210,H=297,M=16,CW=W-2*M;let y;
  const ink=[20,24,31],mut=[84,89,98],acc=[194,65,12],line=[220,221,214],soft=[242,242,238];
  const teams=(r.hemmalag||'Hemmalag')+' - '+(r.bortalag||'Bortalag');
+ const firma=r.foretag||FORETAG;
  function head(first){
   d.setFillColor(...ink);d.rect(0,0,W,first?32:16,'F');d.setFillColor(...acc);d.rect(0,first?32:16,W,1.4,'F');
   d.setTextColor(255,255,255);d.setFont('helvetica','bold');
-  if(first){d.setFontSize(8.5);d.text('SÄKERHETSRAPPORT',M,11);d.setFontSize(19);d.text(d.splitTextToSize(teams,CW-55)[0],M,23);
+  if(first){d.setFontSize(8.5);d.text('SÄKERHETSRAPPORT  ·  '+firma.toUpperCase(),M,11);d.setFontSize(19);d.text(d.splitTextToSize(teams,CW-55)[0],M,23);
    d.setFont('helvetica','normal');d.setFontSize(9.5);d.text(fmtDate(r.datum),W-M,13,{align:'right'});d.text('Rapportör: '+(r.rapportor||'-'),W-M,19,{align:'right'});
    d.text(r.status==='klar'?'Avslutad':'Pågående',W-M,25,{align:'right'});y=44}
-  else{d.setFontSize(10);d.text('Säkerhetsrapport · '+teams+' · '+fmtDate(r.datum),M,10);y=26}
+  else{d.setFontSize(10);d.text(firma+' · Säkerhetsrapport · '+teams+' · '+fmtDate(r.datum),M,10);y=26}
   d.setTextColor(...ink);
  }
  function need(h){if(y+h>H-18){d.addPage();head(false)}}
@@ -369,7 +371,7 @@ function buildPdf(r){
   d.setFont('helvetica','normal');d.setFontSize(10);d.setTextColor(...ink);tl.forEach((l,i)=>d.text(l,M+20,y+i*4.8));let yy=y+tl.length*4.8;
   if(who.length){d.setFont('helvetica','bold');d.setFontSize(8.8);d.setTextColor(...mut);who.forEach(l=>{d.text(l,M+20,yy);yy+=4.4})}
   y=yy+1.5;d.setDrawColor(...line);d.line(M,y,W-M,y);y+=5.5;d.setTextColor(...ink)});
- const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Skapad i Säkerhetsrapport',M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
+ const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mut);d.setDrawColor(...line);d.line(M,H-13,W-M,H-13);d.text('Rapporten är upprättad av '+firma,M,H-8.5);d.text('Sida '+i+' av '+n,W-M,H-8.5,{align:'right'})}
  return d;
 }
 async function pdfOut(share){
