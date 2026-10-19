@@ -187,9 +187,18 @@ async function logout(){
 }
 
 /* ---------------- rapport ---------------- */
+function nameFromEmail(e){return (e||'').split('@')[0].split(/[._-]+/).filter(Boolean).map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
+function myName(){return (S.profil&&S.profil.namn)||nameFromEmail(S.me&&S.me.email)}
+async function deleteReport(id){
+ clearTimeout(S.timer);
+ const {error}=await sb.from('rapporter').delete().eq('id',id).eq('agare',S.me.id);
+ if(error){toast('Kunde inte ta bort. Kontrollera nätet och försök igen.');renderReport(true);return}
+ delete S.pending[id];savePending();S.rows=S.rows.filter(x=>x.id!==id);LS.set(K('rows'),S.rows);LS.del('sr_r_'+id);
+ S.report=null;go('list');toast('Rapporten är borttagen');
+}
 function newReport(){
  tabs('report');
- const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:S.profil.namn||LS.get(K('namn'))||'',telefon:S.profil.telefon||'',epost:S.profil.epost||S.me.email||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
+ const r={id:uid(),foretag:FORETAG,datum:today(),rapportor:myName(),telefon:S.profil.telefon||'',epost:S.profil.epost||S.me.email||'',hemmalag:'',bortalag:'',publik:'',vakterHemma:[],vakterBorta:[],ovrig:[],logg:[],
   utkast:{tid:'',text:'',vakter:[]},status:'pagaende',skapad:Date.now(),uppdaterad:Date.now()};
  S.report=r;S.owner=S.me.id;S.readOnly=false;S.view='report';S.lastSaved=null;localSave(r);flush();renderReport();window.scrollTo(0,0);
 }
@@ -200,7 +209,9 @@ async function openReport(id,owner){
   const {data,error}=await sb.from('rapporter').select('data').eq('id',id).maybeSingle();
   if(!error&&data){r=data.data;LS.set('sr_r_'+id,r)}else r=LS.get('sr_r_'+id);}
  if(!r){toast('Rapporten kunde inte hämtas. Kontrollera nätet.');go('list');return}
- S.report=JSON.parse(JSON.stringify(r));S.lastSaved=S.pending[id]?null:r.uppdaterad;S.saveState=S.pending[id]?'offline':'saved';
+ S.report=JSON.parse(JSON.stringify(r));
+ if(!S.readOnly&&!(S.report.rapportor||'').trim()){S.report.rapportor=myName();S.report.telefon=S.report.telefon||S.profil.telefon||'';S.report.epost=S.report.epost||S.profil.epost||S.me.email;touch()}
+ S.lastSaved=S.pending[id]?null:r.uppdaterad;S.saveState=S.pending[id]?'offline':'saved';
  renderReport();window.scrollTo(0,0);
 }
 const allStaff=r=>[].concat(r.vakterHemma||[],r.vakterBorta||[],r.ovrig||[]);
@@ -214,11 +225,12 @@ function renderReport(keep){
  else h+='<div class="banner read"><span class="dot"></span>Avslutad. Du kan fortfarande ändra.</div>';
  h+='<div class="eyebrow">Match</div><div class="grid2">'
   +'<label class="f">Datum<input id="f_datum" type="date" value="'+esc(r.datum)+'"'+dis+'></label>'
-  +'<label class="f">Rapportör<input id="f_rapportor" type="text" value="'+esc(r.rapportor)+'" autocomplete="name" placeholder="Ditt namn"'+dis+'></label>'
+  +'<label class="f">Rapportör<input id="f_rapportor" type="text" value="'+esc(r.rapportor)+'" disabled></label>'
   +'<label class="f">Hemmalag<input id="f_hemmalag" type="text" value="'+esc(r.hemmalag)+'" placeholder="Hemmalag"'+dis+'></label>'
   +'<label class="f">Bortalag<input id="f_bortalag" type="text" value="'+esc(r.bortalag)+'" placeholder="Bortalag"'+dis+'></label>'
-  +'<label class="f">Telefon<input id="f_telefon" type="tel" value="'+esc(r.telefon||'')+'" autocomplete="tel"'+dis+'></label>'
-  +'<label class="f">E-post<input id="f_epost" type="email" value="'+esc(r.epost||'')+'" autocomplete="email"'+dis+'></label></div>'
+  +'<label class="f">Telefon<input id="f_telefon" type="tel" value="'+esc(r.telefon||'')+'" disabled></label>'
+  +'<label class="f">E-post<input id="f_epost" type="email" value="'+esc(r.epost||'')+'" disabled></label></div>'
+  +(ro?'':'<span class="empty">Rapportör, telefon och e-post kommer från Mina uppgifter.</span>')
   +'<div class="grid2"><label class="f">Publik totalt<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>'
   +'<label class="f">Varav bortapublik<input id="f_publikBorta" type="text" inputmode="numeric" value="'+esc(r.publikBorta==null?'':r.publikBorta)+'" placeholder="0"'+dis+'></label></div>'
   +'<div class="grid2"><label class="f">Avspark<input id="f_start1" type="time" value="'+esc(r.start1||'')+'"'+dis+'></label>'
@@ -237,6 +249,7 @@ function renderReport(keep){
   +'<label class="f" id="polbox"'+(pol?'':' hidden')+'>Vilken polis? (namn, tjänstenummer)<input id="f_polisNamn" type="text" value="'+esc(r.polisNamn||'')+'"'+dis+'></label></div>';
  h+='<div class="eyebrow" style="margin-top:6px">Övriga noteringar</div>'
   +'<label class="f"><span class="sr" hidden>Övriga noteringar</span><textarea id="f_ovrigt" rows="4" placeholder="Skriv övriga noteringar" aria-label="Övriga noteringar"'+dis+'>'+esc(r.ovrigt||'')+'</textarea></label>';
+ if(!ro)h+='<div class="box" style="margin-top:18px"><h3>Ta bort rapporten</h3><span class="empty">Rapporten försvinner för alltid, även för dem du har bjudit in.</span><button type="button" class="btn ghost small" id="delrep" style="border-color:var(--accent-ink);color:var(--accent-ink)">Ta bort rapporten</button></div>';
  const y=window.scrollY;$('#main').innerHTML=h;if(keep)window.scrollTo(0,y);
  if(!ro){
   for(const k of ['kameror','polisNamn','ovrigt']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;if(k==='kameror')$('#kamok').hidden=!!el.value.trim();touch()})}
@@ -244,12 +257,16 @@ function renderReport(keep){
    document.querySelectorAll('[data-pol]').forEach(x=>{const v=(x.dataset.pol==='1')===on;x.classList.toggle('on',v);x.setAttribute('aria-pressed',String(v))});
    $('#polbox').hidden=!on;if(on)$('#f_polisNamn').focus()});
   for(const k of ['start1','start2']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;touch();$('#log').innerHTML=logHTML();wireLog();updMin()})}
-  for(const k of ['datum','rapportor','telefon','epost','hemmalag','bortalag','publik','publikBorta']){const el=$('#f_'+k);const isNum=k==='publik'||k==='publikBorta';el.addEventListener('input',()=>{
+  for(const k of ['datum','hemmalag','bortalag','publik','publikBorta']){const el=$('#f_'+k);const isNum=k==='publik'||k==='publikBorta';el.addEventListener('input',()=>{
    S.report[k]=isNum?num(el.value):el.value;if(isNum&&String(el.value)!==String(S.report[k]))el.value=S.report[k];
-   if(k==='rapportor')LS.set(K('namn'),el.value);touch()})}
+   touch()})}
   wireComposer();
  }
  wireStaff();wireLog();
+ const dr=$('#delrep');if(dr)dr.onclick=async()=>{
+  if(!dr.dataset.arm){dr.dataset.arm='1';dr.textContent='Tryck igen för att ta bort för alltid';dr.style.background='var(--accent)';dr.style.color='var(--on-accent)';
+   setTimeout(()=>{if(dr.isConnected){delete dr.dataset.arm;dr.textContent='Ta bort rapporten';dr.style.background='';dr.style.color='var(--accent-ink)'}},5000);return}
+  dr.disabled=true;dr.textContent='Tar bort…';await deleteReport(S.report.id)};
  $('#dock').hidden=false;
  $('#dockin').innerHTML=(ro?'':(r.status!=='klar'?'<button class="btn dark" id="finish">Avsluta rapport</button>':'<button class="btn ghost" id="reopen">Öppna igen</button>'))+'<button class="btn '+(ro?'primary':'ghost')+'" id="toShare">'+ICON.pdf+'PDF / Dela</button>';
  const f=$('#finish');if(f)f.onclick=()=>{S.report.status='klar';touch();flush();toast('Rapporten är avslutad och sparad');renderReport(true)};
