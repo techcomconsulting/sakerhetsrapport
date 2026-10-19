@@ -33,6 +33,7 @@ const ICON={
  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
  person:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
+ shield2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><circle cx="12" cy="10" r="2.5"/><path d="M8 16c.8-1.6 2.2-2.5 4-2.5s3.2.9 4 2.5"/></svg>',
  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
  pdf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M7 8l5-5 5 5"/></svg>',
@@ -85,14 +86,16 @@ function summary(r){return {datum:r.datum||'',hemmalag:r.hemmalag||'',bortalag:r
  vakter:(r.vakterHemma||[]).length+(r.vakterBorta||[]).length,ovrig:(r.ovrig||[]).length,handelser:(r.logg||[]).length,status:r.status||'pagaende',rapportor:r.rapportor||''}}
 
 async function loadAll(){
- const [a,b,c,e4]=await Promise.all([
+ const [a,b,c,e4,e5]=await Promise.all([
   sb.from('rapporter').select('id,agare,uppdaterad,sammanfattning').order('uppdaterad',{ascending:false}).limit(2000),
   sb.from('vakter').select('id,namn,nr,kat,roll'),
   sb.from('delningar').select('agare,email,skapad'),
-  sb.from('installningar').select('snabbval,namn,telefon,epost').maybeSingle()]);
+  sb.from('installningar').select('snabbval,namn,telefon,epost').maybeSingle(),
+  sb.from('mottagare').select('id,namn,forening,epost,telefon')]);
  if(!a.error){S.rows=a.data;LS.set(K('rows'),S.rows)}
  if(!b.error){S.guards=b.data;LS.set(K('guards'),S.guards)}
  if(!c.error){S.shares=c.data}
+ if(!e5.error){S.ansv=e5.data;LS.set(K('ansv'),S.ansv)}
  if(!e4.error&&e4.data&&Array.isArray(e4.data.snabbval)){S.quick=e4.data.snabbval;LS.set(K('quick'),S.quick)}
  if(!e4.error&&e4.data){S.profil={namn:e4.data.namn||'',telefon:e4.data.telefon||'',epost:e4.data.epost||''};LS.set(K('profil'),S.profil)}
  if(a.error)setOnline(false);
@@ -378,6 +381,14 @@ function renderShare(){
   +'<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:4px"><strong style="font-size:18px">'+esc((r.hemmalag||'Hemmalag')+' – '+(r.bortalag||'Bortalag'))+'</strong><span class="mono">'+esc(fmtDate(r.datum))+' · '+esc((r.logg||[]).length)+' händelser</span></div>'
   +'<button class="btn primary" id="share">'+ICON.pdf+'Dela PDF (Mejl, Messenger…)</button>'
   +'<button class="btn ghost" id="dl">Ladda ner PDF</button>';
+ {const lag=[r.hemmalag,r.bortalag].map(x=>(x||'').trim().toLowerCase()).filter(Boolean);
+  if(!S.shareSel||S.shareSel.id!==r.id)S.shareSel={id:r.id,set:new Set(S.ansv.filter(m=>m.epost&&m.forening&&lag.some(l=>l.includes(m.forening.toLowerCase())||m.forening.toLowerCase().includes(l))).map(m=>m.id))};
+  const A=S.ansv.filter(m=>m.epost).sort((a,b)=>(a.forening+a.namn).localeCompare(b.forening+b.namn,'sv'));
+  h+='<div class="eyebrow" style="margin-top:12px">Skicka till säkerhetsansvariga</div>';
+  if(!A.length)h+='<p class="empty">Lägg in säkerhetsansvariga under fliken <b>Ansvariga</b>, så kan du välja dem här.</p>';
+  else h+='<div class="card">'+A.map(m=>'<label class="pick"><input type="checkbox" data-m="'+esc(m.id)+'"'+(S.shareSel.set.has(m.id)?' checked':'')+'><span style="display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(m.namn)+(m.forening?' · '+esc(m.forening):'')+'</span><span class="s" style="overflow-wrap:anywhere">'+esc(m.epost)+'</span></span></label>').join('')+'</div>'
+   +'<button class="btn primary" id="sendSel">Skicka PDF till valda ('+S.shareSel.set.size+')</button>'
+   +'<p class="empty">E-postadresserna kopieras. Välj Mejl och klistra in dem i Till-fältet.</p>';}
  if(mine){
   h+='<div class="eyebrow" style="margin-top:12px">Bjud in – bara läsa</div>'
    +'<form class="row" id="sf" style="align-items:flex-end"><label class="f" style="flex:1">E-post<input id="se" type="email" inputmode="email" placeholder="namn@exempel.se" autocomplete="off"></label><button class="btn dark small" type="submit" style="min-height:48px">Bjud in</button></form>'
@@ -387,6 +398,11 @@ function renderShare(){
  }
  $('#main').innerHTML=h;$('#dock').hidden=true;
  $('#share').onclick=()=>pdfOut(true);$('#dl').onclick=()=>pdfOut(false);
+ document.querySelectorAll('[data-m]').forEach(c=>c.onchange=()=>{if(c.checked)S.shareSel.set.add(c.dataset.m);else S.shareSel.set.delete(c.dataset.m);$('#sendSel').textContent='Skicka PDF till valda ('+S.shareSel.set.size+')'});
+ const ss=$('#sendSel');if(ss)ss.onclick=()=>{const em=S.ansv.filter(m=>S.shareSel.set.has(m.id)&&m.epost).map(m=>m.epost);
+  if(!em.length){toast('Välj minst en mottagare');return}
+  const txt=em.join(', ');try{navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}
+  toast('Adresserna är kopierade. Klistra in dem i Till-fältet.');pdfOut(true)};
  if(mine){
   $('#sf').onsubmit=async e=>{e.preventDefault();const em=$('#se').value.trim().toLowerCase();
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){toast('Skriv en riktig e-postadress');return}
@@ -486,6 +502,29 @@ function renderInst(){
   S.delArm=null;S.quick.splice(i,1);renderInst();await saveQuick()});
 }
 
+/* ---------------- säkerhetsansvariga ---------------- */
+function renderAnsv(){
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield2+'</span><h1>Säkerhetsansvariga</h1>';
+ const L=S.ansv.slice().sort((a,b)=>(a.forening+a.namn).localeCompare(b.forening+b.namn,'sv'));
+ let h='<form class="box" id="af"><h3>Lägg till säkerhetsansvarig</h3><div class="grid2"><label class="f">Namn<input id="an" type="text" autocomplete="off"></label><label class="f">Förening<input id="afo" type="text" placeholder="t.ex. Varbergs Bois"></label>'
+  +'<label class="f">E-post<input id="ae" type="email" inputmode="email" autocomplete="off"></label><label class="f">Telefon<input id="at" type="tel" autocomplete="off"></label></div><button class="btn primary small" type="submit">Lägg till</button></form>';
+ h+='<div class="eyebrow">Alla ('+L.length+')</div>';
+ h+='<div class="card">'+(L.map(m=>'<div class="pick"><span style="flex:1;display:flex;flex-direction:column;min-width:0"><span class="n">'+esc(m.namn)+(m.forening?' · '+esc(m.forening):'')+'</span><span class="s" style="overflow-wrap:anywhere">'+esc([m.epost,m.telefon].filter(Boolean).join(' · ')||' ')+'</span></span><button class="link" data-arm="'+esc(m.id)+'">'+(S.delArm==='a'+m.id?'Säker?':'Ta bort')+'</button></div>').join('')||'<div class="pick"><span class="empty">Listan är tom. Lägg till den första ovan.</span></div>')+'</div>';
+ h+='<p class="empty">När du skickar en PDF förväljs de vars förening matchar hemmalaget eller bortalaget.</p>';
+ $('#main').innerHTML=h;$('#dock').hidden=true;
+ $('#af').onsubmit=async e=>{e.preventDefault();const n=$('#an').value.trim(),fo=$('#afo').value.trim(),em=$('#ae').value.trim().toLowerCase(),t=$('#at').value.trim();
+  if(!n){$('#an').focus();return}if(em&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){toast('Kontrollera e-postadressen');$('#ae').focus();return}
+  const m={id:uid(),namn:n,forening:fo,epost:em,telefon:t};
+  const {error}=await sb.from('mottagare').upsert(Object.assign({agare:S.me.id},m));
+  if(error){toast('Kunde inte spara. Kontrollera nätet.');return}
+  S.ansv.push(m);LS.set(K('ansv'),S.ansv);toast(n+' är tillagd');renderAnsv();$('#an').focus()};
+ document.querySelectorAll('[data-arm]').forEach(b=>b.onclick=async()=>{const id=b.dataset.arm;
+  if(S.delArm!=='a'+id){S.delArm='a'+id;renderAnsv();return}
+  S.delArm=null;const {error}=await sb.from('mottagare').delete().eq('id',id);
+  if(error){toast('Kunde inte ta bort. Kontrollera nätet.');return}
+  S.ansv=S.ansv.filter(m=>m.id!==id);LS.set(K('ansv'),S.ansv);renderAnsv()});
+}
+
 /* ---------------- mina uppgifter ---------------- */
 function renderMe(){
  $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.person+'</span><h1>Mina uppgifter</h1>';
@@ -503,7 +542,7 @@ function renderMe(){
 }
 
 /* ---------------- navigering ---------------- */
-const TABS=[['list','Rapporter','doc'],['reg','Vakter','users'],['inst','Snabbval','gear'],['me','Mina uppgifter','person']];
+const TABS=[['list','Rapporter','doc'],['reg','Vakter','users'],['ansv','Ansvariga','shield2'],['inst','Snabbval','gear'],['me','Profil','person']];
 function tabs(v){const on=TABS.some(t=>t[0]===v);$('#tabbar').hidden=!on;document.body.classList.toggle('has-tabs',on);if(!on)return;
  $('#tabin').style.setProperty('--tabs',TABS.length);
  $('#tabin').innerHTML=TABS.map(t=>'<button class="'+(t[0]===v?'on':'')+'" data-tab="'+t[0]+'"'+(t[0]===v?' aria-current="page"':'')+'>'+ICON[t[2]]+t[1]+'</button>').join('');
@@ -511,7 +550,7 @@ function tabs(v){const on=TABS.some(t=>t[0]===v);$('#tabbar').hidden=!on;documen
 function go(v){
  if(S.reloadWhenFree&&v==='list'){S.reloadWhenFree();return}
  tabs(v);S.view=v;S.delArm=null;$('#sheet').innerHTML='';
- if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();else if(v==='me')renderMe();
+ if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();else if(v==='me')renderMe();else if(v==='ansv')renderAnsv();
  window.scrollTo(0,0);
 }
 
@@ -519,7 +558,7 @@ function go(v){
 async function enter(user){
  if(S.me&&S.me.id===user.id)return;
  S.me={id:user.id,email:(user.email||'').toLowerCase()};
- S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.profil=LS.get(K('profil'))||{namn:'',telefon:'',epost:''};S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
+ S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.profil=LS.get(K('profil'))||{namn:'',telefon:'',epost:''};S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];S.ansv=LS.get(K('ansv'))||[];
  S.view='list';tabs('list');renderList();
  await loadAll();
  for(const id in S.pending){const loc=S.pending[id];const row=S.rows.find(x=>x.id===id);if(row&&(row.uppdaterad||0)>=(loc.uppdaterad||0)){delete S.pending[id]}}
