@@ -478,7 +478,7 @@ function renderMe(){
  $('#dock').hidden=true;$('#out').onclick=logout;
  let t;for(const k of ['namn','telefon','epost'])$('#m_'+k).addEventListener('input',e=>{S.profil[k]=e.target.value;LS.set(K('profil'),S.profil);$('#m_st').textContent='Sparar…';clearTimeout(t);
   t=setTimeout(async()=>{const {error}=await sb.from('installningar').upsert({agare:S.me.id,namn:S.profil.namn,telefon:S.profil.telefon,epost:S.profil.epost,uppdaterad:new Date().toISOString()});
-   $('#m_st').textContent=error?'Sparat i mobilen. Skickas när nätet finns.':'Sparat'},600)});
+   $('#m_st').textContent=error?'Kunde inte spara. Kontrollera nätet och ändra igen.':'Sparat'},600)});
 }
 
 /* ---------------- navigering ---------------- */
