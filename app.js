@@ -15,7 +15,7 @@ const timeOf=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0
 const num=v=>{const n=parseInt(String(v).replace(/\D/g,''),10);return isNaN(n)?'':n};
 const fmtNum=n=>n===''||n==null?'–':Number(n).toLocaleString('sv-SE');
 const FORETAG='Techcom Consulting AB';
-const QUICK=['Sjukvård','Bengaler','Berusad person','PL 13 Avlägsnad'];
+const QUICK_DEFAULT=['Sjukvård','Bengaler','Berusad person','PL 13 Avlägsnad'];
 const toMin=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(+m[1])*60+(+m[2]):null};
 /* Fotboll: 2 x 45 min. Utan tid för andra halvlek räknar vi med 15 min paus. */
 function matchMinute(r,tid){
@@ -30,6 +30,7 @@ const KAT={hemma:'Vakter hemma',borta:'Vakter borta',ovrig:'Övrig personal'};
 const ICON={
  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+ gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
  pdf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M7 8l5-5 5 5"/></svg>',
@@ -78,17 +79,19 @@ function renderLogin(mode,msg){
 }
 
 /* ---------------- data ---------------- */
-function summary(r){return {datum:r.datum||'',hemmalag:r.hemmalag||'',bortalag:r.bortalag||'',publik:r.publik===''?'':r.publik,
+function summary(r){return {datum:r.datum||'',hemmalag:r.hemmalag||'',bortalag:r.bortalag||'',publik:r.publik===''?'':r.publik,publikBorta:r.publikBorta==null?'':r.publikBorta,
  vakter:(r.vakterHemma||[]).length+(r.vakterBorta||[]).length,ovrig:(r.ovrig||[]).length,handelser:(r.logg||[]).length,status:r.status||'pagaende',rapportor:r.rapportor||''}}
 
 async function loadAll(){
- const [a,b,c]=await Promise.all([
+ const [a,b,c,e4]=await Promise.all([
   sb.from('rapporter').select('id,agare,uppdaterad,sammanfattning').order('uppdaterad',{ascending:false}).limit(2000),
   sb.from('vakter').select('id,namn,nr,kat,roll'),
-  sb.from('delningar').select('agare,email,skapad')]);
+  sb.from('delningar').select('agare,email,skapad'),
+  sb.from('installningar').select('snabbval').maybeSingle()]);
  if(!a.error){S.rows=a.data;LS.set(K('rows'),S.rows)}
  if(!b.error){S.guards=b.data;LS.set(K('guards'),S.guards)}
  if(!c.error){S.shares=c.data}
+ if(!e4.error&&e4.data&&Array.isArray(e4.data.snabbval)){S.quick=e4.data.snabbval;LS.set(K('quick'),S.quick)}
  if(a.error)setOnline(false);
 }
 function setOnline(v){S.online=v}
@@ -151,13 +154,13 @@ function rcard(r){
  return '<button class="rcard'+(live&&mine?' live':'')+'" data-open="'+esc(r.id)+'" data-owner="'+esc(r.owner)+'">'
   +'<span class="row between" style="width:100%"><span class="mono">'+esc(fmtDate(r.datum))+(live&&mine&&r.uppdaterad?' · sparat '+timeOf(r.uppdaterad):'')+'</span>'+pill+'</span>'
   +'<span class="teams">'+esc((r.hemmalag||'Hemmalag')+' – '+(r.bortalag||'Bortalag'))+'</span>'
-  +'<span class="meta"><span>Publik '+esc(fmtNum(r.publik))+'</span><span>Vakter '+esc(r.vakter||0)+'</span><span>'+esc(r.handelser||0)+' händelser</span>'+(r.rapportor?'<span>'+esc(r.rapportor)+'</span>':'')+'</span>'
+  +'<span class="meta"><span>Publik '+esc(fmtNum(r.publik))+(r.publikBorta!==''&&r.publikBorta!=null?' (borta '+esc(fmtNum(r.publikBorta))+')':'')+'</span><span>Vakter '+esc(r.vakter||0)+'</span><span>'+esc(r.handelser||0)+' händelser</span>'+(r.rapportor?'<span>'+esc(r.rapportor)+'</span>':'')+'</span>'
   +(live&&mine?'<span style="font-weight:700;color:var(--accent-ink)">Fortsätt skriva →</span>':'')+'</button>';
 }
 function renderList(){
  if(S.view!=='list')return;
- $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1><button class="iconbtn" id="toReg" aria-label="Vaktregister">'+ICON.users+'</button>';
- $('#toReg').onclick=()=>go('reg');
+ $('#head').innerHTML='<span class="iconbtn" style="width:30px">'+ICON.shield+'</span><h1>Säkerhetsrapport</h1><button class="iconbtn" id="toInst" aria-label="Snabbval">'+ICON.gear+'</button><button class="iconbtn" id="toReg" aria-label="Vaktregister">'+ICON.users+'</button>';
+ $('#toReg').onclick=()=>go('reg');$('#toInst').onclick=()=>go('inst');
  const q=S.q.trim().toLowerCase();
  let reps=allReports().filter(r=>!q||[r.hemmalag,r.bortalag,r.datum,fmtDate(r.datum),r.rapportor].join(' ').toLowerCase().includes(q));
  reps.sort((a,b)=>(b.datum||'').localeCompare(a.datum||'')||(b.uppdaterad||0)-(a.uppdaterad||0));
@@ -211,7 +214,8 @@ function renderReport(keep){
   +'<label class="f">Rapportör<input id="f_rapportor" type="text" value="'+esc(r.rapportor)+'" autocomplete="name" placeholder="Ditt namn"'+dis+'></label>'
   +'<label class="f">Hemmalag<input id="f_hemmalag" type="text" value="'+esc(r.hemmalag)+'" placeholder="Hemmalag"'+dis+'></label>'
   +'<label class="f">Bortalag<input id="f_bortalag" type="text" value="'+esc(r.bortalag)+'" placeholder="Bortalag"'+dis+'></label></div>'
-  +'<label class="f">Publiksiffra<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>'
+  +'<div class="grid2"><label class="f">Publik totalt<input id="f_publik" type="text" inputmode="numeric" value="'+esc(r.publik)+'" placeholder="0"'+dis+'></label>'
+  +'<label class="f">Varav bortapublik<input id="f_publikBorta" type="text" inputmode="numeric" value="'+esc(r.publikBorta==null?'':r.publikBorta)+'" placeholder="0"'+dis+'></label></div>'
   +'<div class="grid2"><label class="f">Avspark<input id="f_start1" type="time" value="'+esc(r.start1||'')+'"'+dis+'></label>'
   +'<label class="f">Avspark 2:a halvlek<input id="f_start2" type="time" value="'+esc(r.start2||'')+'"'+dis+'></label></div>'
   +(ro?'':'<span class="empty">Fyll i avspark så räknas matchminuten ut för varje händelse.</span>');
@@ -235,8 +239,8 @@ function renderReport(keep){
    document.querySelectorAll('[data-pol]').forEach(x=>{const v=(x.dataset.pol==='1')===on;x.classList.toggle('on',v);x.setAttribute('aria-pressed',String(v))});
    $('#polbox').hidden=!on;if(on)$('#f_polisNamn').focus()});
   for(const k of ['start1','start2']){const el=$('#f_'+k);el.addEventListener('input',()=>{S.report[k]=el.value;touch();$('#log').innerHTML=logHTML();wireLog();updMin()})}
-  for(const k of ['datum','rapportor','hemmalag','bortalag','publik']){const el=$('#f_'+k);el.addEventListener('input',()=>{
-   S.report[k]=k==='publik'?num(el.value):el.value;if(k==='publik'&&String(el.value)!==String(S.report.publik))el.value=S.report.publik;
+  for(const k of ['datum','rapportor','hemmalag','bortalag','publik','publikBorta']){const el=$('#f_'+k);const isNum=k==='publik'||k==='publikBorta';el.addEventListener('input',()=>{
+   S.report[k]=isNum?num(el.value):el.value;if(isNum&&String(el.value)!==String(S.report[k]))el.value=S.report[k];
    if(k==='rapportor')LS.set(K('namn'),el.value);touch()})}
   wireComposer();
  }
@@ -260,7 +264,7 @@ function composerHTML(){
   +'<button type="button" class="btn ghost small" id="c_now" style="min-height:48px">Nu</button>'
   +'<span id="c_min" aria-live="polite" style="font-weight:800;font-size:17px;color:var(--accent-ink);padding-bottom:12px">'+esc(minLabel(u.tid||nowHM()))+'</span></div>'
   +'<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600">Snabbval</span><div class="chips">'
-  +QUICK.map(q=>'<button type="button" class="chip" data-quick="'+esc(q)+'">'+esc(q)+'</button>').join('')+'</div></div>'
+  +S.quick.map(q=>'<button type="button" class="chip" data-quick="'+esc(q)+'">'+esc(q)+'</button>').join('')+'</div></div>'
   +'<label class="f">Vad hände?<textarea id="c_text" rows="3" placeholder="Skriv händelsen eller tryck på ett snabbval">'+esc(u.text)+'</textarea></label>'
   +'<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600">Ingripande vakter</span>'
   +(staff.length?'<div class="chips">'+staff.map(g=>{const on=(u.vakter||[]).includes(g.id);return '<button type="button" class="chip'+(on?' on':'')+'" data-tog="'+esc(g.id)+'" aria-pressed="'+on+'">'+esc(g.namn)+'</button>'}).join('')+'</div>':'<span class="empty">Lägg till vakter under Personal först.</span>')+'</div>'
@@ -390,8 +394,8 @@ function buildPdf(r){
  }
  function need(h){if(y+h>H-18){d.addPage();head(false)}}
  head(true);
- const stats=[['PUBLIK',fmtNum(r.publik)],['VAKTER HEMMA',String((r.vakterHemma||[]).length)],['VAKTER BORTA',String((r.vakterBorta||[]).length)],['ÖVRIG PERSONAL',String((r.ovrig||[]).length)]];
- const bw=(CW-9)/4;stats.forEach((s,i)=>{const x=M+i*(bw+3);d.setFillColor(...soft);d.roundedRect(x,y,bw,19,2,2,'F');d.setFont('helvetica','bold');d.setFontSize(7);d.setTextColor(...mut);d.text(s[0],x+4,y+6.5);d.setFontSize(15);d.setTextColor(...ink);d.text(s[1],x+4,y+15)});
+ const stats=[['PUBLIK TOTALT',fmtNum(r.publik)],['BORTAPUBLIK',fmtNum(r.publikBorta)],['VAKTER HEMMA',String((r.vakterHemma||[]).length)],['VAKTER BORTA',String((r.vakterBorta||[]).length)],['ÖVRIG PERSONAL',String((r.ovrig||[]).length)]];
+ const bw=(CW-12)/5;stats.forEach((s,i)=>{const x=M+i*(bw+3);d.setFillColor(...soft);d.roundedRect(x,y,bw,19,2,2,'F');d.setFont('helvetica','bold');d.setFontSize(7);d.setTextColor(...mut);d.text(s[0],x+4,y+6.5);d.setFontSize(15);d.setTextColor(...ink);d.text(s[1],x+4,y+15)});
  y+=28;
  const cols=[['Vakter hemma',r.vakterHemma||[]],['Vakter borta',r.vakterBorta||[]],['Övrig personal',r.ovrig||[]]],cw=(CW-12)/3;let maxH=0;
  cols.forEach((c,i)=>{const x=M+i*(cw+6);let yy=y;d.setFont('helvetica','bold');d.setFontSize(9.5);d.text(c[0],x,yy);yy+=5.5;d.setFont('helvetica','normal');
@@ -433,10 +437,33 @@ async function pdfOut(share){
  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 
+/* ---------------- snabbval ---------------- */
+async function saveQuick(){LS.set(K('quick'),S.quick);
+ const {error}=await sb.from('installningar').upsert({agare:S.me.id,snabbval:S.quick,uppdaterad:new Date().toISOString()});
+ if(error)toast('Kunde inte spara. Kontrollera nätet.')}
+function renderInst(){
+ $('#head').innerHTML='<button class="iconbtn" id="back" aria-label="Tillbaka">'+ICON.back+'</button><h1>Snabbval</h1>';
+ $('#back').onclick=()=>go('list');
+ const L=S.quick;
+ let h='<form class="box" id="qf"><h3>Lägg till snabbval</h3><label class="f">Text<input id="qn" type="text" placeholder="t.ex. Bråk på läktaren" maxlength="60"></label><button class="btn primary small" type="submit">Lägg till</button></form>';
+ h+='<div class="eyebrow">Dina snabbval ('+L.length+')</div>';
+ h+='<div class="card">'+(L.map((q,i)=>'<div class="pick"><span class="n" style="flex:1;min-width:0;overflow-wrap:anywhere">'+esc(q)+'</span>'
+  +'<button class="link" data-up="'+i+'" aria-label="Flytta upp '+esc(q)+'"'+(i===0?' disabled style="visibility:hidden"':'')+'>Upp</button>'
+  +'<button class="link" data-qrm="'+i+'">'+(S.delArm==='q'+i?'Säker?':'Ta bort')+'</button></div>').join('')||'<div class="pick"><span class="empty">Inga snabbval. Lägg till ovan.</span></div>')+'</div>';
+ h+='<p class="empty">Snabbvalen visas som knappar när du skriver en händelse i loggen.</p>';
+ $('#main').innerHTML=h;$('#dock').hidden=true;
+ $('#qf').onsubmit=async e=>{e.preventDefault();const v=$('#qn').value.trim();if(!v){$('#qn').focus();return}
+  if(S.quick.includes(v)){toast('Finns redan');return}S.quick.push(v);renderInst();$('#qn').focus();await saveQuick();toast(v+' är tillagd')};
+ document.querySelectorAll('[data-up]').forEach(b=>b.onclick=async()=>{const i=+b.dataset.up;if(i<1)return;const t=S.quick[i-1];S.quick[i-1]=S.quick[i];S.quick[i]=t;S.delArm=null;renderInst();await saveQuick()});
+ document.querySelectorAll('[data-qrm]').forEach(b=>b.onclick=async()=>{const i=+b.dataset.qrm;
+  if(S.delArm!=='q'+i){S.delArm='q'+i;renderInst();return}
+  S.delArm=null;S.quick.splice(i,1);renderInst();await saveQuick()});
+}
+
 /* ---------------- navigering ---------------- */
 function go(v){
  S.view=v;S.delArm=null;$('#sheet').innerHTML='';
- if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();
+ if(v==='list'){S.report=null;renderList()}else if(v==='reg')renderReg();else if(v==='share')renderShare();else if(v==='inst')renderInst();
  window.scrollTo(0,0);
 }
 
@@ -444,7 +471,7 @@ function go(v){
 async function enter(user){
  if(S.me&&S.me.id===user.id)return;
  S.me={id:user.id,email:(user.email||'').toLowerCase()};
- S.pending=LS.get(K('pending'))||{};S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
+ S.pending=LS.get(K('pending'))||{};S.quick=LS.get(K('quick'))||QUICK_DEFAULT.slice();S.rows=LS.get(K('rows'))||[];S.guards=LS.get(K('guards'))||[];
  S.view='list';renderList();
  await loadAll();
  for(const id in S.pending){const loc=S.pending[id];const row=S.rows.find(x=>x.id===id);if(row&&(row.uppdaterad||0)>=(loc.uppdaterad||0)){delete S.pending[id]}}
